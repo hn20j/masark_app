@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "782097407952",
+    "project_id": "masark-c0771",
+    "storage_bucket": "masark-c0771.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:782097407952:android:cc6f6be32a72c3229f23d5",
+        "android_client_info": {
+          "package_name": "com.example.masarak"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfaZNUag5QwlHKnr-8b59qo0kIh7aSFt8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

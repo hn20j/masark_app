@@ -1,0 +1,34 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "dataconnect": {
+      "dataDir": "dataconnect/.dataconnect/pgliteData"
+    }
+  },
+  "dataconnect": {
+    "source": "dataconnect"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "masark-c0771",
+          "appId": "1:782097407952:android:cc6f6be32a72c3229f23d5",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "masark-c0771",
+          "configurations": {
+            "android": "1:782097407952:android:cc6f6be32a72c3229f23d5",
+            "web": "1:782097407952:web:778446fceaa4c0059f23d5"
+          }
+        }
+      }
+    }
+  }
+}

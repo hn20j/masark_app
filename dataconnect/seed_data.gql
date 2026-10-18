@@ -1,0 +1,42 @@
+mutation CreateSeedData @transaction {
+  user_insertMany(data: [
+    { id: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", username: "traveler_joe", email: "joe@example.com", bio: "Nature lover" },
+    { id: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", username: "city_walker", email: "sarah@example.com", bio: "Urban explorer" },
+    { id: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803", username: "hiker_pro", email: "mike@example.com", bio: "Mountain enthusiast" }
+  ])
+  path_insertMany(data: [
+    { id: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e501", title: "Forest Trail", creatorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", startCoordinates: "45.0, -120.0", endCoordinates: "45.1, -120.1", description: "Quiet forest path", isPublic: true },
+    { id: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e502", title: "City Loop", creatorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", startCoordinates: "40.0, -74.0", endCoordinates: "40.1, -74.1", description: "Downtown walk", isPublic: true },
+    { id: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e503", title: "Peak Climb", creatorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803", startCoordinates: "35.0, -115.0", endCoordinates: "35.2, -115.2", description: "Hard mountain climb", isPublic: true }
+  ])
+  waypoint_insertMany(data: [
+    { pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e501", coordinates: "45.05, -120.05", orderIndex: 1, note: "Start point" },
+    { pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e502", coordinates: "40.05, -74.05", orderIndex: 1, note: "Coffee shop" },
+    { pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e503", coordinates: "35.1, -115.1", orderIndex: 1, note: "Base camp" }
+  ])
+  pin_insertMany(data: [
+    { authorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", coordinates: "45.02, -120.02", category: "Viewpoint", title: "River View" },
+    { authorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", coordinates: "40.02, -74.02", category: "Cafe", title: "Main Street Cafe" },
+    { authorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803", coordinates: "35.15, -115.15", category: "Safety", title: "Emergency Hut" }
+  ])
+  comment_insertMany(data: [
+    { pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e501", authorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", text: "Great trail!" },
+    { pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e502", authorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", text: "Love this city loop." },
+    { pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e503", authorId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", text: "Too steep for me." }
+  ])
+  collection_insertMany(data: [
+    { ownerId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", name: "Favorites", description: "My favorite paths" },
+    { ownerId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", name: "To Visit", description: "Bucket list" },
+    { ownerId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803", name: "Training", description: "Climbing routes" }
+  ])
+  savedPath_insertMany(data: [
+    { collectionId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e501" },
+    { collectionId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e502" },
+    { collectionId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803", pathId: "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e503" }
+  ])
+  follow_insertMany(data: [
+    { followerId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801", followingId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803" },
+    { followerId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802", followingId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731801" },
+    { followerId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731803", followingId: "e6f43e5c-0c5a-4e89-a9c1-4b1632731802" }
+  ])
+}

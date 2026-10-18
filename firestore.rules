@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Account records are private and keyed by the Firebase Authentication UID.
+    // Employee CV file contents are not stored in Firestore.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged() {
+      return request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return request.resource.data.uid == resource.data.uid &&
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(data, fields) {
+      return data.keys().hasOnly(fields);
+    }
+
+    function isValidString(value, minLength, maxLength) {
+      return value is string &&
+        value.size() >= minLength &&
+        value.size() <= maxLength;
+    }
+
+    function isValidEmail(value) {
+      return isValidString(value, 3, 254) &&
+        value.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$');
+    }
+
+    function isValidEmailOrEmpty(value) {
+      return value is string && value.size() <= 254 &&
+        (value == '' || isValidEmail(value));
+    }
+
+    function isValidOptionalString(data, field, maxLength) {
+      return !(field in data) || data[field] == null ||
+        isValidString(data[field], 1, maxLength);
+    }
+
+    function isValidOptionalEmail(data, field) {
+      return !(field in data) || data[field] == null ||
+        isValidEmail(data[field]);
+    }
+
+    function isValidOptionalTimestamp(data, field) {
+      return !(field in data) || data[field] == null ||
+        (data[field] is timestamp && data[field] <= request.time);
+    }
+
+    function isValidList(value, maxSize) {
+      return value is list && value.size() <= maxSize;
+    }
+
+    function isValidStringAt(items, index, maxLength) {
+      return items.size() <= index ||
+        isValidString(items[index], 1, maxLength);
+    }
+
+    function isValidStringList(value, maxSize, maxLength) {
+      return isValidList(value, maxSize) &&
+        isValidStringAt(value, 0, maxLength) &&
+        isValidStringAt(value, 1, maxLength) &&
+        isValidStringAt(value, 2, maxLength) &&
+        isValidStringAt(value, 3, maxLength) &&
+        isValidStringAt(value, 4, maxLength) &&
+        isValidStringAt(value, 5, maxLength) &&
+        isValidStringAt(value, 6, maxLength) &&
+        isValidStringAt(value, 7, maxLength) &&
+        isValidStringAt(value, 8, maxLength) &&
+        isValidStringAt(value, 9, maxLength) &&
+        isValidStringAt(value, 10, maxLength) &&
+        isValidStringAt(value, 11, maxLength) &&
+        isValidStringAt(value, 12, maxLength) &&
+        isValidStringAt(value, 13, maxLength) &&
+        isValidStringAt(value, 14, maxLength) &&
+        isValidStringAt(value, 15, maxLength) &&
+        isValidStringAt(value, 16, maxLength) &&
+        isValidStringAt(value, 17, maxLength) &&
+        isValidStringAt(value, 18, maxLength) &&
+        isValidStringAt(value, 19, maxLength);
+    }
+
+    function isValidOptionalStringList(data, field, maxSize, maxLength) {
+      return !(field in data) || data[field] == null ||
+        isValidStringList(data[field], maxSize, maxLength);
+    }
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(data, [
+          'uid',
+          'name',
+          'email',
+          'accountType',
+          'homeCountry',
+          'phone',
+          'responsiblePerson',
+          'companyContactEmail',
+          'birthdate',
+          'governorate',
+          'governorateRegion',
+          'academicAchievement',
+          'workPreferences',
+          'workLocation',
+          'skills',
+          'careerCategory',
+          'universityMajor',
+          'yearsExperience',
+          'preferredCountry',
+          'remoteOk',
+          'cvFileName',
+          'profileCompletion',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        hasRequiredFields(data, [
+          'uid',
+          'name',
+          'email',
+          'accountType',
+          'homeCountry',
+          'profileCompletion',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.uid is string &&
+        isValidString(data.name, 1, 120) &&
+        isValidEmailOrEmpty(data.email) &&
+        data.accountType in ['employee', 'company'] &&
+        isValidString(data.homeCountry, 1, 80) &&
+        isValidOptionalString(data, 'phone', 32) &&
+        isValidOptionalString(data, 'responsiblePerson', 120) &&
+        isValidOptionalEmail(data, 'companyContactEmail') &&
+        isValidOptionalTimestamp(data, 'birthdate') &&
+        isValidOptionalString(data, 'governorate', 100) &&
+        isValidOptionalString(data, 'governorateRegion', 150) &&
+        isValidOptionalString(data, 'academicAchievement', 150) &&
+        isValidOptionalStringList(data, 'workPreferences', 20, 100) &&
+        isValidOptionalString(data, 'workLocation', 150) &&
+        isValidOptionalStringList(data, 'skills', 20, 80) &&
+        isValidOptionalString(data, 'careerCategory', 80) &&
+        isValidOptionalString(data, 'universityMajor', 120) &&
+        isValidOptionalString(data, 'yearsExperience', 40) &&
+        isValidOptionalString(data, 'preferredCountry', 80) &&
+        (!('remoteOk' in data) || data.remoteOk is bool) &&
+        isValidOptionalString(data, 'cvFileName', 255) &&
+        data.profileCompletion is number &&
+        data.profileCompletion >= 0 &&
+        data.profileCompletion <= 1 &&
+        data.createdAt is timestamp &&
+        data.createdAt <= request.time &&
+        data.updatedAt is timestamp &&
+        data.updatedAt == request.time &&
+        (
+          data.accountType == 'employee' ||
+          (
+            isValidOptionalString(data, 'phone', 32) &&
+            isValidOptionalString(data, 'responsiblePerson', 120) &&
+            isValidOptionalEmail(data, 'companyContactEmail') &&
+            isValidOptionalString(data, 'governorate', 100)
+          )
+        );
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+        uidUnchanged() &&
+        isValidUser(request.resource.data) &&
+        request.resource.data.createdAt == request.time;
+      allow update: if isOwner(userId) &&
+        uidNotModified() &&
+        isValidUser(request.resource.data) &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.accountType == resource.data.accountType;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

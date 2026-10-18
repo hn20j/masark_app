@@ -1,0 +1,123 @@
+mutation CreateUser($username: String!, $email: String!, $bio: String, $profileImageUrl: String) @auth(level: USER) {
+  user_insert(data: { id_expr: "auth.uid", username: $username, email: $email, bio: $bio, profileImageUrl: $profileImageUrl })
+}
+
+mutation UpdateUser($bio: String, $profileImageUrl: String) @auth(level: USER) {
+  user_update(key: { id_expr: "auth.uid" }, data: { bio: $bio, profileImageUrl: $profileImageUrl })
+}
+
+mutation DeleteUser @auth(level: USER) {
+  user_delete(key: { id_expr: "auth.uid" })
+}
+
+query GetCurrentUser @auth(level: USER) {
+  user(key: { id_expr: "auth.uid" }) { username email bio profileImageUrl }
+}
+
+query ListUsers @auth(level: PUBLIC, insecureReason: "User discovery is a public feature.") {
+  users { username profileImageUrl }
+}
+
+mutation CreatePath($title: String!, $startCoordinates: String!, $endCoordinates: String!, $description: String, $tags: String, $isPublic: Boolean) @auth(level: USER) {
+  path_insert(data: { title: $title, creatorId_expr: "auth.uid", startCoordinates: $startCoordinates, endCoordinates: $endCoordinates, description: $description, tags: $tags, isPublic: $isPublic })
+}
+
+mutation UpdatePath($id: UUID!, $title: String, $description: String) @auth(level: USER) {
+  path_update(key: { id: $id }, data: { title: $title, description: $description })
+}
+
+mutation DeletePath($id: UUID!) @auth(level: USER) {
+  path_delete(key: { id: $id })
+}
+
+query GetPath($id: UUID!) @auth(level: PUBLIC, insecureReason: "Paths are intended to be shared publicly.") {
+  path(id: $id) { title description startCoordinates endCoordinates }
+}
+
+query ListMyPaths @auth(level: USER) {
+  paths(where: { creatorId: { eq_expr: "auth.uid" } }) { title description }
+}
+
+mutation CreateWaypoint($pathId: UUID!, $coordinates: String!, $orderIndex: Int!, $note: String, $photoUrl: String) @auth(level: USER) {
+  waypoint_insert(data: { pathId: $pathId, coordinates: $coordinates, orderIndex: $orderIndex, note: $note, photoUrl: $photoUrl })
+}
+
+mutation UpdateWaypoint($id: UUID!, $note: String) @auth(level: USER) {
+  waypoint_update(key: { id: $id }, data: { note: $note })
+}
+
+mutation DeleteWaypoint($id: UUID!) @auth(level: USER) {
+  waypoint_delete(key: { id: $id })
+}
+
+query GetWaypoint($id: UUID!) @auth(level: USER) {
+  waypoint(id: $id) { coordinates orderIndex note photoUrl }
+}
+
+query ListPathWaypoints($pathId: UUID!) @auth(level: PUBLIC, insecureReason: "Path details are public.") {
+  waypoints(where: { pathId: { eq: $pathId } }) { coordinates orderIndex note }
+}
+
+mutation CreatePin($coordinates: String!, $category: String!, $title: String, $description: String, $photoUrl: String) @auth(level: USER) {
+  pin_insert(data: { authorId_expr: "auth.uid", coordinates: $coordinates, category: $category, title: $title, description: $description, photoUrl: $photoUrl })
+}
+
+mutation UpdatePin($id: UUID!, $title: String) @auth(level: USER) {
+  pin_update(key: { id: $id }, data: { title: $title })
+}
+
+mutation DeletePin($id: UUID!) @auth(level: USER) {
+  pin_delete(key: { id: $id })
+}
+
+query GetPin($id: UUID!) @auth(level: PUBLIC, insecureReason: "Pins are public landmarks.") {
+  pin(id: $id) { title coordinates category description }
+}
+
+query ListMyPins @auth(level: USER) {
+  pins(where: { authorId: { eq_expr: "auth.uid" } }) { title coordinates }
+}
+
+mutation CreateComment($pathId: UUID!, $text: String!) @auth(level: USER) {
+  comment_insert(data: { pathId: $pathId, authorId_expr: "auth.uid", text: $text })
+}
+
+mutation DeleteComment($id: UUID!) @auth(level: USER) {
+  comment_delete(key: { id: $id })
+}
+
+query ListPathComments($pathId: UUID!) @auth(level: PUBLIC, insecureReason: "Comments are part of public path views.") {
+  comments(where: { pathId: { eq: $pathId } }) { text author { username } createdAt }
+}
+
+mutation CreateCollection($name: String!, $description: String) @auth(level: USER) {
+  collection_insert(data: { ownerId_expr: "auth.uid", name: $name, description: $description })
+}
+
+mutation UpdateCollection($id: UUID!, $name: String) @auth(level: USER) {
+  collection_update(key: { id: $id }, data: { name: $name })
+}
+
+mutation DeleteCollection($id: UUID!) @auth(level: USER) {
+  collection_delete(key: { id: $id })
+}
+
+query ListMyCollections @auth(level: USER) {
+  collections(where: { ownerId: { eq_expr: "auth.uid" } }) { name description }
+}
+
+mutation SavePath($collectionId: UUID!, $pathId: UUID!) @auth(level: USER) {
+  savedPath_insert(data: { collectionId: $collectionId, pathId: $pathId })
+}
+
+mutation RemoveSavedPath($collectionId: UUID!, $pathId: UUID!) @auth(level: USER) {
+  savedPath_delete(key: { collectionId: $collectionId, pathId: $pathId })
+}
+
+mutation FollowUser($followingId: UUID!) @auth(level: USER) {
+  follow_insert(data: { followerId_expr: "auth.uid", followingId: $followingId })
+}
+
+mutation UnfollowUser($followingId: UUID!) @auth(level: USER) {
+  follow_delete(key: { followerId_expr: "auth.uid", followingId: $followingId })
+}

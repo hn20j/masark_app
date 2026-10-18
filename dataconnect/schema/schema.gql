@@ -1,0 +1,56 @@
+type User @table {
+  username: String!
+  email: String!
+  bio: String
+  profileImageUrl: String
+}
+
+type Path @table {
+  title: String!
+  creator: User!
+  startCoordinates: String!
+  endCoordinates: String!
+  description: String
+  tags: String
+  isPublic: Boolean
+}
+
+type Waypoint @table {
+  path: Path!
+  coordinates: String!
+  orderIndex: Int!
+  note: String
+  photoUrl: String
+}
+
+type Pin @table {
+  author: User!
+  coordinates: String!
+  category: String!
+  title: String
+  description: String
+  photoUrl: String
+}
+
+type Comment @table {
+  path: Path!
+  author: User!
+  text: String!
+  createdAt: Timestamp
+}
+
+type Collection @table {
+  owner: User!
+  name: String!
+  description: String
+}
+
+type SavedPath @table(key: ["collection", "path"]) {
+  collection: Collection!
+  path: Path!
+}
+
+type Follow @table(key: ["follower", "following"]) {
+  follower: User!
+  following: User!
+}
