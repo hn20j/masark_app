@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
+import '../theme/app_state.dart';
 import 'home_screen.dart' show statusMeta;
 import 'job_details_screen.dart';
+import 'package:provider/provider.dart';
 
 class ApplicationsScreen extends StatefulWidget {
   final bool embedded;
@@ -16,7 +18,8 @@ class ApplicationsScreen extends StatefulWidget {
 class _ApplicationsScreenState extends State<ApplicationsScreen> {
   @override
   Widget build(BuildContext context) {
-    final applications = DemoData.applications;
+    final state = context.watch<AppState>();
+    final applications = state.applications;
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -27,44 +30,60 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(AppText.of(context, 'طلباتي', 'My applications'),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
+                  style: TextStyle(
+                      color: context.appPalette.textPrimary,
+                      fontSize: 24,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(
                   AppText.of(
                       context,
-                      '${applications.length} طلب قدّمه الوكيل الذكي نيابة عنك',
-                      '${applications.length} applications submitted by your AI agent'),
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12.5)),
+                      '${applications.length} طلب محفوظ داخل مسارك',
+                      '${applications.length} application requests saved in Masarak'),
+                  style: TextStyle(
+                      color: context.appPalette.textSecondary, fontSize: 12.5)),
             ],
           ),
         ),
         const SizedBox(height: 16),
         Expanded(
-          child: applications.isEmpty
-              ? Center(
-                  child: Text(
-                      AppText.of(
-                          context, 'لا توجد طلبات بعد', 'No applications yet'),
-                      style: const TextStyle(color: AppColors.textMuted)),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  itemCount: applications.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) =>
-                      _ApplicationTile(application: applications[i]),
-                ),
+          child: state.applicationsLoading
+              ? const Center(child: CircularProgressIndicator())
+              : state.applicationsError != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          state.applicationsError!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.textMuted),
+                        ),
+                      ),
+                    )
+                  : applications.isEmpty
+                      ? Center(
+                          child: Text(
+                              AppText.of(context, 'لا توجد طلبات بعد',
+                                  'No applications yet'),
+                              style:
+                                  const TextStyle(color: AppColors.textMuted)),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          itemCount: applications.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, i) =>
+                              _ApplicationTile(application: applications[i]),
+                        ),
         ),
       ],
     );
 
     if (widget.embedded) return content;
     return Scaffold(
-        backgroundColor: AppColors.background, body: SafeArea(child: content));
+        backgroundColor: context.appPalette.background,
+        body: SafeArea(child: content));
   }
 }
 
@@ -130,21 +149,6 @@ class _ApplicationTile extends StatelessWidget {
                     color: AppColors.textMuted, fontSize: 12.5)),
             const SizedBox(height: 10),
             _StatusTimeline(current: application.status),
-            if (application.submittedByAgent) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.smart_toy_outlined,
-                      size: 13, color: AppColors.primaryVioletDark),
-                  const SizedBox(width: 5),
-                  Text(
-                      AppText.of(context, 'قدّمه الوكيل الذكي',
-                          'Submitted by AI agent'),
-                      style: const TextStyle(
-                          color: AppColors.primaryVioletDark, fontSize: 11)),
-                ],
-              ),
-            ],
           ],
         ),
       ),

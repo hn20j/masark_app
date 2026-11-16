@@ -11,9 +11,9 @@ class JobCard extends StatelessWidget {
   const JobCard({super.key, required this.job, this.onTap, this.onApply});
 
   Color get _matchColor {
-    if (job.matchScore >= 85) return AppColors.success;
-    if (job.matchScore >= 65) return AppColors.warning;
-    return AppColors.textMuted;
+    if ((job.matchScore ?? 0) >= 85) return AppColors.success;
+    if ((job.matchScore ?? 0) >= 65) return AppColors.warning;
+    return AppColors.primaryViolet;
   }
 
   @override
@@ -23,7 +23,7 @@ class JobCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadii.lg),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: AppColors.cardLight,
           borderRadius: BorderRadius.circular(AppRadii.lg),
@@ -33,36 +33,38 @@ class JobCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _matchColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                if (job.matchScore != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _matchColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt,
+                            size: 13, color: AppColors.accentYellow),
+                        const SizedBox(width: 3),
+                        Text('${job.matchScore}% تطابق',
+                            style: TextStyle(
+                                color: _matchColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.bolt, size: 13, color: _matchColor),
-                      const SizedBox(width: 3),
-                      Text('${job.matchScore}% تطابق',
-                          style: TextStyle(
-                              color: _matchColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
                 const Spacer(),
                 Container(
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceIndigo,
+                    color: AppColors.primaryViolet.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.business_outlined,
-                      color: Colors.white, size: 18),
+                      color: AppColors.primaryViolet, size: 18),
                 ),
               ],
             ),

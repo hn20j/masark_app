@@ -1,11 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/auth_error_message.dart';
 import 'company_dashboard_screen.dart';
 import 'company_signup_screen.dart';
 
@@ -57,21 +54,11 @@ class _CompanyLoginScreenState extends State<CompanyLoginScreen> {
         ),
         (route) => false,
       );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
+    } catch (error) {
       if (mounted) {
         _showMessage(
-            firebaseAuthErrorMessage(context, error, signingUp: false));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(
-          AppText.of(
-            context,
-            'تعذر تسجيل الدخول. حاول مجددًا.',
-            'Could not sign in. Please try again.',
-          ),
+          '${AppText.of(context, 'تعذر تسجيل الدخول.', 'Could not sign in.')} '
+          '${AppState.errorMessage(error)}',
         );
       }
     } finally {
@@ -88,7 +75,7 @@ class _CompanyLoginScreenState extends State<CompanyLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       appBar: AppBar(
         title: Text(AppText.of(context, 'دخول الشركة', 'Company sign in')),
       ),
@@ -103,7 +90,7 @@ class _CompanyLoginScreenState extends State<CompanyLoginScreen> {
                 height: 60,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceIndigoLight,
+                  color: context.appPalette.surfaceIndigoLight,
                   borderRadius: BorderRadius.circular(AppRadii.md),
                 ),
                 child: const Icon(
@@ -115,9 +102,9 @@ class _CompanyLoginScreenState extends State<CompanyLoginScreen> {
               const SizedBox(height: 20),
               Text(
                 AppText.of(context, 'تسجيل دخول الشركة', 'Company sign in'),
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 22,
+                style: TextStyle(
+                  color: context.appPalette.textPrimary,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -128,8 +115,8 @@ class _CompanyLoginScreenState extends State<CompanyLoginScreen> {
                   'أدخل البريد الإلكتروني وكلمة المرور لحساب شركتك',
                   'Enter the email and password for your company account',
                 ),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.appPalette.textSecondary,
                   fontSize: 13,
                 ),
               ),

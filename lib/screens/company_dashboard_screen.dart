@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import '../models/models.dart';
 import '../theme/app_state.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_theme.dart';
+import '../widgets/language_selector.dart';
+import '../widgets/theme_mode_selector.dart';
+import 'onboarding_screen.dart';
+import 'notifications_screen.dart';
 
 enum _CompanyTab { dashboard, jobs, applicants, interviews, company }
 
 enum _CandidateStage { newApplicant, underReview, interview, hired, rejected }
 
 class CompanyJob {
+  final String? id;
   final String title;
   final String location;
   final String type;
@@ -20,6 +25,7 @@ class CompanyJob {
   final DateTime postedAt;
 
   const CompanyJob({
+    this.id,
     required this.title,
     required this.location,
     required this.type,
@@ -32,6 +38,7 @@ class CompanyJob {
 }
 
 class _CompanyCandidate {
+  final String applicationId;
   final String name;
   final String role;
   final String email;
@@ -40,12 +47,12 @@ class _CompanyCandidate {
   DateTime? interviewAt;
 
   _CompanyCandidate({
+    required this.applicationId,
     required this.name,
     required this.role,
     required this.email,
     required this.jobTitle,
     required this.stage,
-    this.interviewAt,
   });
 }
 
@@ -77,53 +84,62 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
   late String _responsiblePerson = widget.responsiblePerson;
   late String _governorate = widget.governorate;
 
-  final List<CompanyJob> _jobs = [
-    CompanyJob(
-      title: 'Flutter Developer',
-      location: 'Baghdad',
-      type: 'Full-time',
-      salary: 'Negotiable',
-      experience: '2+ years',
-      description: 'Build and maintain mobile applications.',
-      skills: const ['Flutter', 'Dart'],
-      postedAt: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    CompanyJob(
-      title: 'Product Designer',
-      location: 'Erbil',
-      type: 'Full-time',
-      salary: 'Negotiable',
-      experience: '1+ year',
-      description: 'Design helpful digital products for our customers.',
-      skills: const ['Figma', 'UI/UX'],
-      postedAt: DateTime.now().subtract(const Duration(days: 5)),
-    ),
-  ];
+  List<CompanyJob> _jobs = [];
+  List<_CompanyCandidate> _candidates = [];
 
-  late final List<_CompanyCandidate> _candidates = [
-    _CompanyCandidate(
-      name: 'Sara Ahmed',
-      role: 'Flutter Developer',
-      email: 'sara.ahmed@example.com',
-      jobTitle: 'Flutter Developer',
-      stage: _CandidateStage.newApplicant,
-    ),
-    _CompanyCandidate(
-      name: 'Omar Khalid',
-      role: 'Flutter Developer',
-      email: 'omar.khalid@example.com',
-      jobTitle: 'Flutter Developer',
-      stage: _CandidateStage.underReview,
-    ),
-    _CompanyCandidate(
-      name: 'Noor Ali',
-      role: 'Product Designer',
-      email: 'noor.ali@example.com',
-      jobTitle: 'Product Designer',
-      stage: _CandidateStage.interview,
-      interviewAt: DateTime.now().add(const Duration(days: 1)),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCompanyData());
+  }
+
+  Future<void> _loadCompanyData() async {
+    final state = context.read<AppState>();
+    await state.refreshCompanyJobs();
+    await state.refreshCompanyApplications();
+    if (!mounted) return;
+    setState(() {
+      _jobs = state.companyJobs.map(_companyJobFromJob).toList();
+      _candidates = state.companyApplications
+          .map(_companyCandidateFromApplication)
+          .toList();
+    });
+    final error = state.jobsError ?? state.applicationsError;
+    if (error != null) _showNotice(error);
+  }
+
+  CompanyJob _companyJobFromJob(Job job) => CompanyJob(
+        id: job.id,
+        title: job.title,
+        location: job.location,
+        type: job.type,
+        salary: job.salaryRange,
+        experience: job.experience ?? '',
+        description: job.description ?? '',
+        skills: job.tags,
+        postedAt: job.postedAt,
+      );
+
+  _CompanyCandidate _companyCandidateFromApplication(Application application) =>
+      _CompanyCandidate(
+        applicationId: application.id,
+        name: application.candidateName ?? '',
+        role: application.job.title,
+        email: application.candidateEmail ?? '',
+        jobTitle: application.job.title,
+        stage: _stageFromStatus(application.status),
+      );
+
+  _CandidateStage _stageFromStatus(ApplicationStatus status) =>
+      switch (status) {
+        ApplicationStatus.queued ||
+        ApplicationStatus.submitted =>
+          _CandidateStage.newApplicant,
+        ApplicationStatus.viewed => _CandidateStage.underReview,
+        ApplicationStatus.interview => _CandidateStage.interview,
+        ApplicationStatus.offer => _CandidateStage.hired,
+        ApplicationStatus.rejected => _CandidateStage.rejected,
+      };
 
   String _tabTitle(BuildContext context) => switch (_tab) {
         _CompanyTab.dashboard =>
@@ -143,19 +159,74 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
       MaterialPageRoute(builder: (_) => const CompanyJobFormScreen()),
     );
     if (job != null && mounted) {
-      setState(() {
-        _jobs.insert(0, job);
-        _tab = _CompanyTab.jobs;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppText.of(
-            context,
-            'تمت إضافة الوظيفة إلى لوحة التحكم.',
-            'Job added to your dashboard.',
-          )),
-        ),
+      try {
+        final savedJob = await context.read<AppState>().createJob(
+              title: job.title,
+              location: job.location,
+              type: job.type,
+              salaryRange: job.salary,
+              experience: job.experience,
+              description: job.description,
+              skills: job.skills,
+            );
+        if (!mounted) return;
+        setState(() {
+          _jobs.insert(0, _companyJobFromJob(savedJob));
+          _tab = _CompanyTab.jobs;
+        });
+        _showNotice(AppText.of(
+          context,
+          'تم نشر الوظيفة.',
+          'Job published.',
+        ));
+      } catch (error) {
+        if (mounted) _showNotice(AppState.errorMessage(error));
+      }
+    }
+  }
+
+  Future<void> _closeJob(CompanyJob job) async {
+    final id = job.id;
+    if (id == null) return;
+    try {
+      await context.read<AppState>().closeJob(id);
+      if (mounted) setState(() => _jobs.remove(job));
+    } catch (error) {
+      if (mounted) _showNotice(AppState.errorMessage(error));
+    }
+  }
+
+  Future<void> _updateCandidateStage(
+    _CompanyCandidate candidate,
+    _CandidateStage stage,
+  ) async {
+    final status = switch (stage) {
+      _CandidateStage.newApplicant => ApplicationStatus.queued,
+      _CandidateStage.underReview => ApplicationStatus.viewed,
+      _CandidateStage.interview => ApplicationStatus.interview,
+      _CandidateStage.hired => ApplicationStatus.offer,
+      _CandidateStage.rejected => ApplicationStatus.rejected,
+    };
+    try {
+      await context
+          .read<AppState>()
+          .updateApplicationStatus(candidate.applicationId, status);
+      if (mounted) setState(() => candidate.stage = stage);
+    } catch (error) {
+      if (mounted) _showNotice(AppState.errorMessage(error));
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await context.read<AppState>().signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        (route) => false,
       );
+    } catch (error) {
+      if (mounted) _showNotice(AppState.errorMessage(error));
     }
   }
 
@@ -170,7 +241,7 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
       final updated = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          backgroundColor: AppColors.surfaceIndigo,
+          backgroundColor: context.appPalette.surfaceIndigo,
           title: Text(AppText.of(
             dialogContext,
             'تعديل معلومات الشركة',
@@ -256,15 +327,9 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
             _responsiblePerson = contactController.text.trim();
             _governorate = locationController.text.trim();
           });
-        } on FirebaseException {
+        } catch (error) {
           if (!mounted) return;
-          _showNotice(
-            AppText.of(
-              context,
-              'تعذر حفظ معلومات الشركة. تحقق من اتصالك وحاول مجددًا.',
-              'Could not save company details. Check your connection and try again.',
-            ),
-          );
+          _showNotice(AppState.errorMessage(error));
         }
       }
     } finally {
@@ -317,15 +382,16 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       appBar: AppBar(
         title: Text(_tabTitle(context)),
         actions: [
           IconButton(
             tooltip: AppText.of(context, 'إشعارات', 'Notifications'),
-            onPressed: () => _showNotice(
-              AppText.of(
-                  context, 'لا توجد إشعارات جديدة', 'No new notifications'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const NotificationsScreen(),
+              ),
             ),
             icon: const Icon(Icons.notifications_none),
           ),
@@ -348,12 +414,11 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
             _JobsTab(
               jobs: _jobs,
               onPostJob: _createJob,
-              onCloseJob: (job) => setState(() => _jobs.remove(job)),
+              onCloseJob: _closeJob,
             ),
             _ApplicantsTab(
               candidates: _candidates,
-              onStageChanged: (candidate, stage) =>
-                  setState(() => candidate.stage = stage),
+              onStageChanged: _updateCandidateStage,
               onSchedule: _scheduleInterview,
             ),
             _InterviewsTab(
@@ -362,9 +427,8 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
                       candidate.stage == _CandidateStage.interview)
                   .toList(),
               onSchedule: _scheduleInterview,
-              onMarkDone: (candidate) => setState(
-                () => candidate.stage = _CandidateStage.hired,
-              ),
+              onMarkDone: (candidate) =>
+                  _updateCandidateStage(candidate, _CandidateStage.hired),
             ),
             _CompanyProfileTab(
               companyName: _companyName,
@@ -373,6 +437,7 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
               responsiblePerson: _responsiblePerson,
               governorate: _governorate,
               onEdit: _editCompanyProfile,
+              onSignOut: _signOut,
             ),
           ],
         ),
@@ -407,32 +472,11 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
   }
 
   Future<void> _scheduleInterview(_CompanyCandidate candidate) async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: candidate.interviewAt ?? now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: candidate.interviewAt == null
-          ? TimeOfDay.now()
-          : TimeOfDay.fromDateTime(candidate.interviewAt!),
-    );
-    if (time == null || !mounted) return;
-    setState(() {
-      candidate
-        ..stage = _CandidateStage.interview
-        ..interviewAt = DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time.hour,
-          time.minute,
-        );
-    });
+    _showNotice(AppText.of(
+      context,
+      'جدولة المقابلات غير مهيأة بعد؛ لم يتم حجز موعد.',
+      'Interview scheduling is not connected yet; no meeting was booked.',
+    ));
   }
 
   void _showNotice(String message) {
@@ -478,9 +522,9 @@ class _OverviewTab extends StatelessWidget {
           '${AppText.of(context, 'مرحبًا،', 'Welcome,')} $companyName',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 20,
+          style: TextStyle(
+            color: context.appPalette.textPrimary,
+            fontSize: 24,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -491,13 +535,14 @@ class _OverviewTab extends StatelessWidget {
             'إليك ملخص نشاط التوظيف لديك',
             'Here is your hiring activity at a glance',
           ),
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style:
+              TextStyle(color: context.appPalette.textSecondary, fontSize: 13),
         ),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
-            color: AppColors.surfaceIndigoLight,
+            color: context.appPalette.surfaceIndigoLight,
             borderRadius: BorderRadius.circular(AppRadii.md),
           ),
           child: Row(
@@ -513,11 +558,11 @@ class _OverviewTab extends StatelessWidget {
                 child: Text(
                   AppText.of(
                     context,
-                    'الوظائف والمتقدمون الظاهرون بيانات تجريبية. إعلاناتك الجديدة تُحفظ مؤقتًا على هذا الجهاز.',
-                    'The jobs and applicants shown are examples. New job posts are stored temporarily on this device.',
+                    'الوظائف والمتقدمون هنا من سجلات مسارك.',
+                    'Jobs and applicants here come from your Masarak records.',
                   ),
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: context.appPalette.textSecondary,
                     fontSize: 11,
                     height: 1.5,
                   ),
@@ -649,7 +694,7 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceIndigoLight,
+      color: context.appPalette.surfaceIndigoLight,
       borderRadius: BorderRadius.circular(AppRadii.md),
       child: InkWell(
         onTap: onTap,
@@ -663,8 +708,8 @@ class _MetricCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 value,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: context.appPalette.textPrimary,
                   fontSize: 23,
                   fontWeight: FontWeight.w800,
                 ),
@@ -674,8 +719,8 @@ class _MetricCard extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.appPalette.textSecondary,
                   fontSize: 11,
                 ),
               ),
@@ -690,7 +735,7 @@ class _MetricCard extends StatelessWidget {
 class _JobsTab extends StatelessWidget {
   final List<CompanyJob> jobs;
   final VoidCallback onPostJob;
-  final ValueChanged<CompanyJob> onCloseJob;
+  final Future<void> Function(CompanyJob) onCloseJob;
 
   const _JobsTab({
     required this.jobs,
@@ -729,7 +774,7 @@ class _JobsTab extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) => _JobCard(
                     job: jobs[index],
-                    onClose: () => onCloseJob(jobs[index]),
+                    onClose: () async => onCloseJob(jobs[index]),
                   ),
                 ),
         ),
@@ -758,9 +803,9 @@ class _JobCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceIndigo,
+        color: context.appPalette.surfaceIndigo,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: context.appPalette.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,8 +817,8 @@ class _JobCard extends StatelessWidget {
                   job.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.appPalette.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -839,8 +884,8 @@ class _JobCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               '${AppText.of(context, 'الخبرة:', 'Experience:')} ${job.experience}',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: context.appPalette.textSecondary,
                 fontSize: 12,
               ),
             ),
@@ -851,8 +896,8 @@ class _JobCard extends StatelessWidget {
               job.description,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: context.appPalette.textSecondary,
                 fontSize: 12,
                 height: 1.45,
               ),
@@ -868,10 +913,10 @@ class _JobCard extends StatelessWidget {
                     (skill) => Chip(
                       label: Text(skill),
                       visualDensity: VisualDensity.compact,
-                      backgroundColor: AppColors.surfaceIndigoLight,
+                      backgroundColor: context.appPalette.surfaceIndigoLight,
                       side: BorderSide.none,
-                      labelStyle: const TextStyle(
-                        color: AppColors.textSecondary,
+                      labelStyle: TextStyle(
+                        color: context.appPalette.textSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -929,8 +974,8 @@ class _ApplicantsTabState extends State<_ApplicantsTab> {
               '${widget.candidates.length} طلب توظيف',
               '${widget.candidates.length} applications',
             ),
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: context.appPalette.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -946,7 +991,8 @@ class _ApplicantsTabState extends State<_ApplicantsTab> {
                 selected: _filter == null,
                 onTap: () => setState(() => _filter = null),
               ),
-              for (final stage in _CandidateStage.values)
+              for (final stage in _CandidateStage.values
+                  .where((stage) => stage != _CandidateStage.newApplicant))
                 _ApplicantFilter(
                   label: _stageLabel(context, stage),
                   selected: _filter == stage,
@@ -1003,9 +1049,9 @@ class _ApplicantFilter extends StatelessWidget {
         selected: selected,
         onSelected: (_) => onTap(),
         selectedColor: AppColors.accentPink,
-        backgroundColor: AppColors.surfaceIndigoLight,
+        backgroundColor: context.appPalette.surfaceIndigoLight,
         labelStyle: TextStyle(
-          color: selected ? AppColors.surfaceIndigo : AppColors.textSecondary,
+          color: selected ? Colors.white : context.appPalette.textSecondary,
           fontSize: 11,
         ),
         side: BorderSide.none,
@@ -1030,9 +1076,9 @@ class _CandidateCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surfaceIndigo,
+        color: context.appPalette.surfaceIndigo,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: context.appPalette.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,9 +1086,9 @@ class _CandidateCard extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                backgroundColor: AppColors.surfaceIndigoLight,
+                backgroundColor: context.appPalette.surfaceIndigoLight,
                 child: Text(
-                  candidate.name.substring(0, 1),
+                  candidate.name.isEmpty ? '?' : candidate.name.substring(0, 1),
                   style: const TextStyle(
                     color: AppColors.accentPink,
                     fontWeight: FontWeight.w700,
@@ -1056,16 +1102,16 @@ class _CandidateCard extends StatelessWidget {
                   children: [
                     Text(
                       candidate.name,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: context.appPalette.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
                       candidate.role,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: context.appPalette.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -1076,6 +1122,7 @@ class _CandidateCard extends StatelessWidget {
                 tooltip: AppText.of(context, 'تغيير الحالة', 'Change status'),
                 onSelected: onStageChanged,
                 itemBuilder: (context) => _CandidateStage.values
+                    .where((stage) => stage != _CandidateStage.newApplicant)
                     .map(
                       (stage) => PopupMenuItem(
                         value: stage,
@@ -1111,8 +1158,8 @@ class _CandidateCard extends StatelessWidget {
                         children: [
                           Text(
                             candidate.name,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: TextStyle(
+                              color: context.appPalette.textPrimary,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
@@ -1225,10 +1272,10 @@ class _InterviewsTab extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceIndigo,
+                  color: context.appPalette.surfaceIndigo,
                   borderRadius: BorderRadius.circular(AppRadii.md),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: context.appPalette.outline,
                   ),
                 ),
                 child: Column(
@@ -1244,8 +1291,8 @@ class _InterviewsTab extends StatelessWidget {
                         Expanded(
                           child: Text(
                             candidate.name,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: TextStyle(
+                              color: context.appPalette.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1263,8 +1310,8 @@ class _InterviewsTab extends StatelessWidget {
                     ),
                     Text(
                       '${candidate.role} · ${candidate.jobTitle}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: context.appPalette.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -1309,6 +1356,7 @@ class _CompanyProfileTab extends StatelessWidget {
   final String responsiblePerson;
   final String governorate;
   final VoidCallback onEdit;
+  final VoidCallback onSignOut;
 
   const _CompanyProfileTab({
     required this.companyName,
@@ -1317,6 +1365,7 @@ class _CompanyProfileTab extends StatelessWidget {
     required this.responsiblePerson,
     required this.governorate,
     required this.onEdit,
+    required this.onSignOut,
   });
 
   @override
@@ -1327,15 +1376,15 @@ class _CompanyProfileTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: AppColors.heroGradient,
+            gradient: context.appPalette.heroGradient,
             borderRadius: BorderRadius.circular(AppRadii.lg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: context.appPalette.outline),
           ),
           child: Column(
             children: [
               CircleAvatar(
                 radius: 34,
-                backgroundColor: AppColors.surfaceIndigoLight,
+                backgroundColor: context.appPalette.surfaceIndigoLight,
                 child: Text(
                   companyName.isEmpty ? 'C' : companyName.substring(0, 1),
                   style: const TextStyle(
@@ -1349,8 +1398,8 @@ class _CompanyProfileTab extends StatelessWidget {
               Text(
                 companyName,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: context.appPalette.textPrimary,
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1358,8 +1407,8 @@ class _CompanyProfileTab extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 AppText.of(context, 'ملف الشركة', 'Company profile'),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.appPalette.textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -1394,11 +1443,67 @@ class _CompanyProfileTab extends StatelessWidget {
           label: AppText.of(context, 'المحافظة', 'Governorate'),
           value: governorate,
         ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: context.appPalette.surfaceIndigo,
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppText.of(context, 'مظهر التطبيق', 'App appearance'),
+                style: TextStyle(
+                  color: context.appPalette.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                AppText.of(context, 'لغة التطبيق', 'App language'),
+                style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: LanguageSelector(),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                AppText.of(context, 'السمة', 'Theme'),
+                style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const ThemeModeSelector(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: onSignOut,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.error,
+            side: BorderSide(color: AppColors.error.withValues(alpha: 0.6)),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          icon: const Icon(Icons.logout),
+          label: Text(AppText.of(context, 'تسجيل الخروج', 'Sign out')),
+        ),
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceIndigoLight,
+            color: context.appPalette.surfaceIndigoLight,
             borderRadius: BorderRadius.circular(AppRadii.md),
           ),
           child: Row(
@@ -1410,11 +1515,11 @@ class _CompanyProfileTab extends StatelessWidget {
                 child: Text(
                   AppText.of(
                     context,
-                    'هذه نسخة تجريبية. معلومات الشركة والوظائف والمتقدمون تُحفظ مؤقتًا على هذا الجهاز فقط.',
-                    'This is a demo. Company details, jobs, and applicants are stored temporarily on this device only.',
+                    'تُحفظ بيانات الشركة والوظائف في Firebase عند تفعيل صلاحية الشركة.',
+                    'Company details and jobs are stored in Firebase after company access is enabled.',
                   ),
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: context.appPalette.textSecondary,
                     fontSize: 12,
                     height: 1.5,
                   ),
@@ -1445,7 +1550,7 @@ class _ProfileInfoTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.surfaceIndigo,
+        color: context.appPalette.surfaceIndigo,
         borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: Row(
@@ -1468,8 +1573,8 @@ class _ProfileInfoTile extends StatelessWidget {
                   value,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.appPalette.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1539,7 +1644,7 @@ class _CompanyJobFormScreenState extends State<CompanyJobFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       appBar: AppBar(
         title: Text(AppText.of(context, 'إضافة وظيفة', 'Post a job')),
       ),
@@ -1554,8 +1659,8 @@ class _CompanyJobFormScreenState extends State<CompanyJobFormScreen> {
                 'أضف تفاصيل الوظيفة لمساعدة المرشحين على التقديم.',
                 'Add job details to help candidates decide whether to apply.',
               ),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: context.appPalette.textSecondary,
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -1710,8 +1815,8 @@ class _SectionHeading extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.appPalette.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
@@ -1739,7 +1844,7 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceIndigo,
+      color: context.appPalette.surfaceIndigo,
       borderRadius: BorderRadius.circular(AppRadii.md),
       child: InkWell(
         onTap: onTap,
@@ -1764,8 +1869,8 @@ class _QuickAction extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: context.appPalette.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1773,8 +1878,8 @@ class _QuickAction extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: context.appPalette.textSecondary,
                         fontSize: 11,
                       ),
                     ),
@@ -1811,8 +1916,8 @@ class _InfoLabel extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: context.appPalette.textSecondary,
               fontSize: 11,
             ),
           ),
@@ -1841,8 +1946,8 @@ class _EmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: context.appPalette.textSecondary,
                 fontSize: 13,
                 height: 1.5,
               ),

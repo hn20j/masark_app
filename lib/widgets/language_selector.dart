@@ -20,9 +20,9 @@ class LanguageSelector extends StatelessWidget {
         context.read<AppState>().setLocale(Locale(selection.first));
       },
       style: SegmentedButton.styleFrom(
-        foregroundColor: AppColors.textSecondary,
+        foregroundColor: context.appPalette.textSecondary,
         selectedForegroundColor: Colors.white,
-        selectedBackgroundColor: AppColors.primaryVioletDark,
+        selectedBackgroundColor: AppColors.primaryViolet,
         visualDensity: VisualDensity.compact,
       ),
     );

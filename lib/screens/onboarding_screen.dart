@@ -30,18 +30,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               context, 'مرحبا بك في تطبيق مسارك', 'Welcome to Masarak'),
           body: AppText.of(
             context,
-            'ارفع سيرتك الذاتية، ودع الذكاء الاصطناعي يقدم عنك.\n\nمنصة مسارك الذكية تحلل سيرتك الذاتية، وتطابقك مع أفضل الفرص المتاحة من وظائف ومنح وتدريب، وتكتب رسائل تقديم مخصصة ومقنعة بضغطة واحدة.',
-            'Upload your CV and let AI apply for you.\n\nMasarak analyzes your CV, matches you with jobs, scholarships, and training, then writes tailored applications in one tap.',
+            'ارفع سيرتك الذاتية، وتابع فرص العمل وطلباتك من مكان واحد.',
+            'Upload your CV and manage job opportunities and application requests in one place.',
           ),
           icon: Icons.auto_awesome,
         ),
         _OnboardingPage(
-          title: AppText.of(context, 'وكيلك الذكي يقدم بدلاً عنك',
-              'Your AI agent applies for you'),
+          title: AppText.of(context, 'اطلب المساعدة بالتقديم',
+              'Request application assistance'),
           body: AppText.of(
             context,
-            'بعد رفع سيرتك، يقوم الوكيل الذكي تلقائيًا بالبحث عن الشركات المناسبة في بلدك وتقديم طلبك إليها، ويرسل لك تحديثًا بكل خطوة.',
-            'After you upload your CV, the AI agent finds suitable companies in your country, submits applications, and keeps you updated at every step.',
+            'يمكنك حفظ طلب لمتابعته لاحقًا. لا تُرسل الطلبات إلى الشركات تلقائيًا.',
+            'Save a request to follow up later. Requests are not automatically sent to companies.',
           ),
           icon: Icons.smart_toy_outlined,
         ),
@@ -50,8 +50,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               'Track every application in one place'),
           body: AppText.of(
             context,
-            'راقب حالة كل طلب تقديم — من الإرسال حتى المقابلة — من خلال لوحة متابعة بسيطة وواضحة.',
-            'Follow each application from submission to interview in one clear dashboard.',
+            'تابع الطلبات المحفوظة وأي تحديثات تصل إلى حسابك.',
+            'Track saved requests and any updates added to your account.',
           ),
           icon: Icons.track_changes_outlined,
         ),
@@ -61,7 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final pages = _pages(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -111,7 +111,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   if (_index == pages.length - 1) {
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
-                        builder: (_) => const SignupTypeScreen(signInMode: true),
+                        builder: (_) =>
+                            const SignupTypeScreen(signInMode: true),
                       ),
                     );
                   } else {
@@ -152,9 +153,9 @@ class _OnboardingCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            gradient: AppColors.heroGradient,
+            gradient: context.appPalette.heroGradient,
             borderRadius: BorderRadius.circular(AppRadii.lg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: context.appPalette.outline),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -184,7 +185,7 @@ class _OnboardingCard extends StatelessWidget {
                       textAlign: TextAlign.start,
                       style: const TextStyle(
                         color: AppColors.textDark,
-                        fontSize: 16,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -193,7 +194,9 @@ class _OnboardingCard extends StatelessWidget {
                       page.body,
                       textAlign: TextAlign.start,
                       style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 13, height: 1.6),
+                          color: AppColors.textMuted,
+                          fontSize: 13,
+                          height: 1.6),
                     ),
                   ],
                 ),

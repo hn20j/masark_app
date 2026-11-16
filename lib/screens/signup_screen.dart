@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +5,6 @@ import '../auth/iraqi_phone_number.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_state.dart';
-import '../widgets/auth_error_message.dart';
 import '../widgets/profile_details_fields.dart';
 import 'login_screen.dart';
 import 'cv_upload_screen.dart';
@@ -32,7 +28,6 @@ class _SignupScreenState extends State<SignupScreen> {
   final _codeCtrl = TextEditingController();
   _SignupMethod _method = _SignupMethod.email;
   bool _phoneCodeSent = false;
-  bool _phoneCompletionInProgress = false;
   bool _loading = false;
 
   @override
@@ -48,11 +43,11 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _signup() async {
     if (!_formKey.currentState!.validate()) return;
     if (_method == _SignupMethod.phone) {
-      if (_phoneCodeSent) {
-        await _completePhoneSignup();
-      } else {
-        await _requestPhoneCode();
-      }
+      _showMessage(AppText.of(
+        context,
+        'التسجيل عبر الهاتف غير مهيأ. استخدم البريد الإلكتروني.',
+        'Phone sign-up is not configured. Use email and password.',
+      ));
       return;
     }
     final email = _emailCtrl.text.trim();
@@ -77,106 +72,11 @@ class _SignupScreenState extends State<SignupScreen> {
             builder: (_) => const CvUploadScreen(isOnboardingFlow: true)),
         (route) => false,
       );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
+    } catch (error) {
       if (mounted) {
-        _showMessage(firebaseAuthErrorMessage(context, error, signingUp: true));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر إنشاء الحساب. حاول مجددًا.',
-            'Could not create the account. Please try again.'));
+        _showMessage(AppState.errorMessage(error));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _requestPhoneCode() async {
-    final phoneNumber = normalizeIraqiPhoneNumber(_phoneCtrl.text);
-    if (phoneNumber == null) return;
-    setState(() => _loading = true);
-    try {
-      await context.read<AppState>().sendPhoneVerificationCode(
-            phoneNumber: phoneNumber,
-            onCodeSent: () {
-              if (mounted) setState(() => _phoneCodeSent = true);
-            },
-            onVerificationFailed: (error) {
-              if (mounted) {
-                _showMessage(
-                    firebaseAuthErrorMessage(context, error, signingUp: true));
-              }
-            },
-            onVerificationCompleted: (credential) {
-              unawaited(_completePhoneSignup(credential: credential));
-            },
-          );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(firebaseAuthErrorMessage(context, error, signingUp: true));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر إرسال رمز التحقق.',
-            'Could not send the verification code.'));
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _completePhoneSignup({PhoneAuthCredential? credential}) async {
-    if (_phoneCompletionInProgress) return;
-    _phoneCompletionInProgress = true;
-    setState(() => _loading = true);
-    try {
-      final state = context.read<AppState>();
-      final authCredential = credential == null
-          ? await state.confirmPhoneCode(_codeCtrl.text.trim())
-          : await state.signInWithPhoneCredential(credential);
-      if (authCredential.additionalUserInfo?.isNewUser != true) {
-        await state.signOut();
-        if (mounted) {
-          _showMessage(AppText.of(
-              context,
-              'هذا الرقم مسجل بالفعل. سجّل الدخول بدلًا من إنشاء حساب.',
-              'This number is already registered. Sign in instead.'));
-        }
-        return;
-      }
-      final profile = _profileFieldsKey.currentState!.value;
-      await state.completePhoneSignUpProfile(
-        name: _nameCtrl.text.trim(),
-        birthdate: profile.birthdate,
-        governorate: profile.governorate,
-        governorateRegion: profile.governorateRegion,
-        academicAchievement: profile.academicAchievement,
-        workPreferences: profile.workPreferences,
-        workLocation: profile.workLocation,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-            builder: (_) => const CvUploadScreen(isOnboardingFlow: true)),
-        (route) => false,
-      );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(firebaseAuthErrorMessage(context, error, signingUp: true));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر إنشاء الحساب. حاول مجددًا.',
-            'Could not create the account. Please try again.'));
-      }
-    } finally {
-      _phoneCompletionInProgress = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -189,7 +89,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surfaceIndigo,
+      backgroundColor: context.appPalette.surfaceIndigo,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 40, 28, 24),
@@ -208,17 +108,17 @@ class _SignupScreenState extends State<SignupScreen> {
                 children: [
                   Text(
                     AppText.of(context, 'إنشاء الحساب', 'Create account'),
-                    style: const TextStyle(
-                        fontSize: 22,
+                    style: TextStyle(
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        color: Color.fromARGB(255, 0, 0, 0)),
+                        color: context.appPalette.textPrimary),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     AppText.of(context, 'خطوة واحدة تفصلك عن أول تقديم لك',
                         'One step away from your first application'),
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 13, color: context.appPalette.textSecondary),
                   ),
                   const SizedBox(height: 32),
                   SegmentedButton<_SignupMethod>(

@@ -221,8 +221,9 @@ class ProfileDetailsFieldsState extends State<ProfileDetailsFields> {
             children: [
               Text(
                 AppText.of(context, 'الوظائف المفضلة', 'Job preferences'),
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: context.appPalette.textPrimary,
+                    fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Row(

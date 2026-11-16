@@ -1,12 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/auth_error_message.dart';
 import 'company_dashboard_screen.dart';
 
 class CompanySignupScreen extends StatefulWidget {
@@ -101,20 +98,11 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
           ),
         ),
       );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(firebaseAuthErrorMessage(context, error, signingUp: true));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
+    } catch (error) {
       if (mounted) {
         _showMessage(
-          AppText.of(
-            context,
-            'تعذر إنشاء الحساب. حاول مجددًا.',
-            'Could not create the account. Please try again.',
-          ),
+          '${AppText.of(context, 'تعذر إنشاء الحساب.', 'Could not create the account.')} '
+          '${AppState.errorMessage(error)}',
         );
       }
     } finally {
@@ -133,7 +121,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
     final isArabic = Localizations.localeOf(context).languageCode == 'ar';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       appBar: AppBar(
         title: Text(AppText.of(context, 'حساب شركة', 'Company account')),
       ),
@@ -148,7 +136,7 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                 height: 60,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceIndigoLight,
+                  color: context.appPalette.surfaceIndigoLight,
                   borderRadius: BorderRadius.circular(AppRadii.md),
                 ),
                 child: const Icon(
@@ -161,9 +149,9 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
               Text(
                 AppText.of(
                     context, 'إنشاء حساب الشركة', 'Create a company account'),
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 22,
+                style: TextStyle(
+                  color: context.appPalette.textPrimary,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -174,8 +162,8 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                   'أدخل معلومات الشركة والشخص المسؤول عن التوظيف',
                   'Enter your company and hiring contact details',
                 ),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.appPalette.textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -377,8 +365,8 @@ class _CompanySignupScreenState extends State<CompanySignupScreen> {
                           'أوافق على شروط الاستخدام وسياسة الخصوصية',
                           'I agree to the Terms of Use and Privacy Policy',
                         ),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: context.appPalette.textSecondary,
                           fontSize: 13,
                         ),
                       ),

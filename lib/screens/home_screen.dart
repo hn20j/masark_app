@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       body: SafeArea(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 320),
@@ -56,23 +56,31 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _navIndex,
-        onTap: (i) => setState(() => _navIndex = i),
-        items: [
-          BottomNavigationBarItem(
-              icon: const Icon(Icons.home_outlined),
-              label: AppText.of(context, 'الرئيسية', 'Home')),
-          BottomNavigationBarItem(
-              icon: const Icon(Icons.search),
-              label: AppText.of(context, 'الفرص', 'Jobs')),
-          BottomNavigationBarItem(
-              icon: const Icon(Icons.send_outlined),
-              label: AppText.of(context, 'طلباتي', 'Applications')),
-          BottomNavigationBarItem(
-              icon: const Icon(Icons.person_outline),
-              label: AppText.of(context, 'حسابي', 'Profile')),
-        ],
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          child: BottomNavigationBar(
+            backgroundColor: context.appPalette.surfaceIndigoLight,
+            elevation: 0,
+            currentIndex: _navIndex,
+            onTap: (i) => setState(() => _navIndex = i),
+            items: [
+              BottomNavigationBarItem(
+                  icon: const Icon(Icons.home_outlined),
+                  label: AppText.of(context, 'الرئيسية', 'Home')),
+              BottomNavigationBarItem(
+                  icon: const Icon(Icons.search),
+                  label: AppText.of(context, 'الفرص', 'Jobs')),
+              BottomNavigationBarItem(
+                  icon: const Icon(Icons.send_outlined),
+                  label: AppText.of(context, 'طلباتي', 'Applications')),
+              BottomNavigationBarItem(
+                  icon: const Icon(Icons.person_outline),
+                  label: AppText.of(context, 'حسابي', 'Profile')),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -87,8 +95,8 @@ class _HomeDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final user = state.currentUser;
-    final applications = DemoData.applications;
-    final topJobs = DemoData.jobs.take(3).toList();
+    final applications = state.applications;
+    final topJobs = state.jobs.take(3).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -99,35 +107,36 @@ class _HomeDashboard extends StatelessWidget {
             delay: const Duration(milliseconds: 40),
             child: Row(
               children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.surfaceIndigoLight,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const NotificationsScreen()),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: context.appPalette.surfaceIndigoLight,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen()),
+                    ),
+                    icon: Icon(Icons.notifications_none,
+                        color: context.appPalette.textPrimary, size: 20),
+                    padding: EdgeInsets.zero,
+                    splashRadius: 18,
                   ),
-                  icon: const Icon(Icons.notifications_none,
-                      color: Colors.white, size: 20),
-                  padding: EdgeInsets.zero,
-                  splashRadius: 18,
                 ),
-              ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                      '${AppText.of(context, 'مرحبا', 'Hello')}${user != null ? ' ${user.name}' : ''}!',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 13)),
-                  Text(AppText.of(context, 'لوحة التحكم', 'Dashboard'),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
-                ],
-              ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        '${AppText.of(context, 'مرحبا', 'Hello')}${user != null ? ' ${user.name}' : ''}!',
+                        style: TextStyle(
+                            color: context.appPalette.textSecondary,
+                            fontSize: 13)),
+                    Text(AppText.of(context, 'لوحة التحكم', 'Dashboard'),
+                        style: TextStyle(
+                            color: context.appPalette.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800)),
+                  ],
+                ),
               ],
             ),
           ),
@@ -139,7 +148,7 @@ class _HomeDashboard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: AppColors.heroGradient,
+                gradient: context.appPalette.heroGradient,
                 borderRadius: BorderRadius.circular(AppRadii.lg),
               ),
               child: Column(
@@ -148,8 +157,8 @@ class _HomeDashboard extends StatelessWidget {
                   Text.rich(
                     TextSpan(
                       text: '${AppText.of(context, 'مرحبا', 'Hello')}\n',
-                      style:
-                          const TextStyle(color: Colors.white, fontSize: 15),
+                      style: TextStyle(
+                          color: context.appPalette.textPrimary, fontSize: 15),
                       children: [
                         TextSpan(
                           text:
@@ -167,19 +176,19 @@ class _HomeDashboard extends StatelessWidget {
                   Text(
                     AppText.of(
                         context,
-                        'ارفع سيرتك الذاتية\nودع الذكاء الاصطناعي\nيقدم عنك',
-                        'Upload your CV\nLet AI\napply for you'),
+                        'ارفع سيرتك الذاتية\nوأدر طلباتك\nمن مكان واحد',
+                        'Upload your CV\nManage your requests\nin one place'),
                     textAlign: TextAlign.start,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: context.appPalette.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         height: 1.4),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                      AppText.of(
-                          context, 'يقدم عنك...', 'Applying for you...'),
+                      AppText.of(context, 'طلباتك في مسارك',
+                          'Your requests in Masarak'),
                       style: const TextStyle(
                           color: AppColors.accentPink, fontSize: 12)),
                   const SizedBox(height: 16),
@@ -187,8 +196,7 @@ class _HomeDashboard extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: PinkButton(
-                        label: AppText.of(
-                            context, 'ابدأ الآن', 'Get started'),
+                        label: AppText.of(context, 'ابدأ الآن', 'Get started'),
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
                               builder: (_) => const CvUploadScreen()),
@@ -205,8 +213,9 @@ class _HomeDashboard extends StatelessWidget {
                           child: Text(user!.cvFileName!,
                               textAlign: TextAlign.start,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 12)),
+                              style: TextStyle(
+                                  color: context.appPalette.textPrimary,
+                                  fontSize: 12)),
                         ),
                       ],
                     ),
@@ -230,8 +239,8 @@ class _HomeDashboard extends StatelessWidget {
           EntranceAnimation(
             delay: const Duration(milliseconds: 180),
             child: _SectionHeader(
-              title: AppText.of(
-                  context, 'نشاط الوكيل الذكي', 'AI agent activity'),
+              title:
+                  AppText.of(context, 'طلبات التقديم', 'Application requests'),
               actionLabel: AppText.of(context, 'عرض الكل', 'View all'),
               onAction: () => onNavigateTo(2),
             ),
@@ -248,12 +257,22 @@ class _HomeDashboard extends StatelessWidget {
           EntranceAnimation(
             delay: const Duration(milliseconds: 320),
             child: _SectionHeader(
-              title: AppText.of(context, 'فرص تناسبك', 'Recommended for you'),
+              title: AppText.of(context, 'أحدث الوظائف', 'Latest jobs'),
               actionLabel: AppText.of(context, 'عرض الكل', 'View all'),
               onAction: () => onNavigateTo(1),
             ),
           ),
           const SizedBox(height: 12),
+          if (topJobs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                state.jobsError ??
+                    AppText.of(context, 'لا توجد وظائف منشورة بعد.',
+                        'No jobs have been published yet.'),
+                style: const TextStyle(color: AppColors.textMuted),
+              ),
+            ),
           ...topJobs.map((j) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: EntranceAnimation(
@@ -284,7 +303,7 @@ class _ProfileCompletionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceIndigoLight,
+        color: context.appPalette.surfaceIndigoLight,
         borderRadius: BorderRadius.circular(AppRadii.lg),
         border: Border.all(color: AppColors.accentPink.withValues(alpha: 0.3)),
       ),
@@ -301,8 +320,8 @@ class _ProfileCompletionCard extends StatelessWidget {
               Text(
                   AppText.of(
                       context, 'اكتمال الملف الشخصي', 'Profile completion'),
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: context.appPalette.textPrimary,
                       fontWeight: FontWeight.w700,
                       fontSize: 13)),
             ],
@@ -313,7 +332,7 @@ class _ProfileCompletionCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: user.profileCompletion,
               minHeight: 7,
-              backgroundColor: AppColors.background,
+              backgroundColor: context.appPalette.background,
               valueColor: const AlwaysStoppedAnimation(AppColors.accentPink),
             ),
           ),
@@ -321,10 +340,10 @@ class _ProfileCompletionCard extends StatelessWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: Text(
-              AppText.of(context, 'أكمل ملفك ليتمكن الوكيل من التقديم بشكل أدق',
-                  'Complete your profile so the agent can apply more accurately.'),
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11.5),
+              AppText.of(context, 'أكمل ملفك لتسهيل التقديم على الوظائف',
+                  'Complete your profile to make job applications easier.'),
+              style: TextStyle(
+                  color: context.appPalette.textSecondary, fontSize: 11.5),
             ),
           ),
         ],
@@ -347,8 +366,8 @@ class _SectionHeader extends StatelessWidget {
         TextButton(onPressed: onAction, child: Text(actionLabel)),
         const Spacer(),
         Text(title,
-            style: const TextStyle(
-                color: Colors.white,
+            style: TextStyle(
+                color: context.appPalette.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w800)),
       ],

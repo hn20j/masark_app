@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
+import '../theme/app_state.dart';
 import '../widgets/job_card.dart';
+import '../widgets/animated_search_button.dart';
 import 'job_details_screen.dart';
+import 'package:provider/provider.dart';
 
 class JobListingsScreen extends StatefulWidget {
   final bool embedded; // true when hosted inside HomeScreen's bottom nav shell
@@ -18,20 +21,36 @@ class _JobListingsScreenState extends State<JobListingsScreen> {
   String _filter = 'الكل';
   final _filters = const ['الكل', 'دوام كامل', 'عن بُعد', 'دوام جزئي'];
 
-  List<Job> get _filtered {
-    return DemoData.jobs.where((j) {
-      final matchesQuery = _query.isEmpty ||
-          j.title.contains(_query) ||
-          j.company.contains(_query) ||
-          j.tags.any((t) => t.toLowerCase().contains(_query.toLowerCase()));
-      final matchesFilter = _filter == 'الكل' || j.type == _filter;
+  List<Job> _filtered(List<Job> jobs) {
+    final query = _query.trim().toLowerCase();
+    return jobs.where((j) {
+      final searchableText = [
+        j.title,
+        j.company,
+        j.location,
+        j.salaryRange,
+        j.type,
+        ...j.tags,
+        if (j.description != null) j.description!,
+        if (j.experience != null) j.experience!,
+      ];
+      final matchesQuery = query.isEmpty ||
+          searchableText.any((text) => text.toLowerCase().contains(query));
+      final type = j.type.toLowerCase();
+      final matchesFilter = _filter == 'الكل' ||
+          j.type == _filter ||
+          (_filter == 'دوام كامل' && type.contains('full')) ||
+          (_filter == 'عن بُعد' && type.contains('remote')) ||
+          (_filter == 'دوام جزئي' && type.contains('part'));
       return matchesQuery && matchesFilter;
     }).toList()
-      ..sort((a, b) => b.matchScore.compareTo(a.matchScore));
+      ..sort((a, b) => b.postedAt.compareTo(a.postedAt));
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final filteredJobs = _filtered(state.jobs);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -43,25 +62,20 @@ class _JobListingsScreenState extends State<JobListingsScreen> {
               Text(
                   AppText.of(
                       context, 'الفرص المتاحة', 'Available opportunities'),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
+                  style: TextStyle(
+                      color: context.appPalette.textPrimary,
+                      fontSize: 24,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 14),
-              TextField(
-                textAlign: TextAlign.start,
-                style: const TextStyle(color: AppColors.textDark),
-                onChanged: (v) => setState(() => _query = v),
-                decoration: InputDecoration(
-                  hintText: AppText.of(
-                      context,
-                      'ابحث عن وظيفة أو شركة أو مهارة',
-                      'Search jobs, companies, or skills'),
-                  prefixIcon:
-                      const Icon(Icons.tune, color: AppColors.textMuted),
-                  suffixIcon:
-                      const Icon(Icons.search, color: AppColors.textMuted),
+              AnimatedSearchButton(
+                hintText: AppText.of(
+                  context,
+                  'ابحث في تفاصيل الوظيفة',
+                  'Search all job details',
                 ),
+                searchLabel: AppText.of(context, 'بحث', 'Search'),
+                closeLabel: AppText.of(context, 'إغلاق البحث', 'Close search'),
+                onChanged: (v) => setState(() => _query = v),
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -87,11 +101,12 @@ class _JobListingsScreenState extends State<JobListingsScreen> {
                       label: Text(label),
                       selected: selected,
                       onSelected: (_) => setState(() => _filter = f),
-                      selectedColor: AppColors.surfaceIndigoLight,
-                      backgroundColor: AppColors.surfaceIndigoLight,
+                      selectedColor: AppColors.primaryViolet,
+                      backgroundColor: context.appPalette.surfaceIndigoLight,
                       labelStyle: TextStyle(
-                          color:
-                              selected ? Colors.white : AppColors.textSecondary,
+                          color: selected
+                              ? Colors.white
+                              : context.appPalette.textSecondary,
                           fontSize: 12.5),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -105,34 +120,50 @@ class _JobListingsScreenState extends State<JobListingsScreen> {
         ),
         const SizedBox(height: 14),
         Expanded(
-          child: _filtered.isEmpty
-              ? Center(
-                  child: Text(
-                      AppText.of(context, 'لا توجد نتائج مطابقة',
-                          'No matching results'),
-                      style: const TextStyle(color: AppColors.textMuted)),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  itemCount: _filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) {
-                    final job = _filtered[i];
-                    return JobCard(
-                      job: job,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => JobDetailsScreen(job: job)),
+          child: state.jobsLoading
+              ? const Center(child: CircularProgressIndicator())
+              : state.jobsError != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          state.jobsError!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.textMuted),
+                        ),
                       ),
-                    );
-                  },
-                ),
+                    )
+                  : filteredJobs.isEmpty
+                      ? Center(
+                          child: Text(
+                              AppText.of(context, 'لا توجد نتائج مطابقة',
+                                  'No matching results'),
+                              style:
+                                  const TextStyle(color: AppColors.textMuted)),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          itemCount: filteredJobs.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, i) {
+                            final job = filteredJobs[i];
+                            return JobCard(
+                              job: job,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => JobDetailsScreen(job: job)),
+                              ),
+                            );
+                          },
+                        ),
         ),
       ],
     );
 
     if (widget.embedded) return content;
     return Scaffold(
-        backgroundColor: AppColors.background, body: SafeArea(child: content));
+        backgroundColor: context.appPalette.background,
+        body: SafeArea(child: content));
   }
 }

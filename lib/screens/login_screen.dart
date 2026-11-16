@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,7 +6,6 @@ import '../l10n/app_text.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_state.dart';
 import '../widgets/language_selector.dart';
-import '../widgets/auth_error_message.dart';
 import 'signup_type_screen.dart';
 import 'home_screen.dart';
 import 'forgot_password_screen.dart';
@@ -31,7 +27,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _codeCtrl = TextEditingController();
   _LoginMethod _method = _LoginMethod.email;
   bool _phoneCodeSent = false;
-  bool _phoneCompletionInProgress = false;
   bool _obscure = true;
   bool _loading = false;
 
@@ -47,11 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     if (_method == _LoginMethod.phone) {
-      if (_phoneCodeSent) {
-        await _completePhoneLogin();
-      } else {
-        await _requestPhoneCode();
-      }
+      _showMessage(AppText.of(
+        context,
+        'تسجيل الدخول عبر الهاتف غير مهيأ. استخدم البريد الإلكتروني.',
+        'Phone sign-in is not configured. Use email and password.',
+      ));
       return;
     }
     final email = _emailCtrl.text.trim();
@@ -67,105 +62,11 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
+    } catch (error) {
       if (mounted) {
-        _showMessage(
-            firebaseAuthErrorMessage(context, error, signingUp: false));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر تسجيل الدخول. حاول مجددًا.',
-            'Could not sign in. Please try again.'));
+        _showMessage(AppState.errorMessage(error));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _requestPhoneCode() async {
-    final phoneNumber = normalizeIraqiPhoneNumber(_phoneCtrl.text);
-    if (phoneNumber == null) return;
-    setState(() => _loading = true);
-    try {
-      await context.read<AppState>().sendPhoneVerificationCode(
-            phoneNumber: phoneNumber,
-            onCodeSent: () {
-              if (mounted) setState(() => _phoneCodeSent = true);
-            },
-            onVerificationFailed: (error) {
-              if (mounted) {
-                _showMessage(
-                    firebaseAuthErrorMessage(context, error, signingUp: false));
-              }
-            },
-            onVerificationCompleted: (credential) {
-              unawaited(_completePhoneLogin(credential: credential));
-            },
-          );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(
-            firebaseAuthErrorMessage(context, error, signingUp: false));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر إرسال رمز التحقق.',
-            'Could not send the verification code.'));
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _completePhoneLogin({PhoneAuthCredential? credential}) async {
-    if (_phoneCompletionInProgress) return;
-    _phoneCompletionInProgress = true;
-    setState(() => _loading = true);
-    try {
-      final state = context.read<AppState>();
-      final authCredential = credential == null
-          ? await state.confirmPhoneCode(_codeCtrl.text.trim())
-          : await state.signInWithPhoneCredential(credential);
-      if (authCredential.additionalUserInfo?.isNewUser == true) {
-        await state.signOut();
-        if (mounted) {
-          _showMessage(AppText.of(
-              context,
-              'لا يوجد حساب لهذا الرقم. أنشئ حسابًا أولاً.',
-              'No account exists for this number. Create an account first.'));
-        }
-        return;
-      }
-      await state.restoreProfileDetails();
-      if (state.currentUser?.accountType != 'employee') {
-        throw FirebaseAuthException(
-          code: 'account-type-mismatch',
-          message: 'This account uses a different account type.',
-        );
-      }
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-        (route) => false,
-      );
-    } on FirebaseException catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(
-            firebaseAuthErrorMessage(context, error, signingUp: false));
-      }
-    } catch (error, stackTrace) {
-      logAuthenticationFailure(error, stackTrace);
-      if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر تسجيل الدخول. حاول مجددًا.',
-            'Could not sign in. Please try again.'));
-      }
-    } finally {
-      _phoneCompletionInProgress = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -178,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 40, 28, 24),
@@ -196,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceIndigoLight,
+                    color: context.appPalette.surfaceIndigoLight,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(Icons.auto_awesome,
@@ -205,17 +106,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 28),
                 Text(
                   AppText.of(context, 'سجل الآن', 'Sign in'),
-                  style: const TextStyle(
-                      fontSize: 22,
+                  style: TextStyle(
+                      fontSize: 24,
                       fontWeight: FontWeight.w800,
-                      color: Colors.white),
+                      color: context.appPalette.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   AppText.of(context, 'ادخل بياناتك للمتابعة إلى حسابك',
                       'Enter your details to continue to your account'),
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 13, color: context.appPalette.textSecondary),
                 ),
                 const SizedBox(height: 32),
                 SegmentedButton<_LoginMethod>(

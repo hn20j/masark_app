@@ -6,8 +6,6 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masarak/auth/iraqi_phone_number.dart';
@@ -34,13 +32,7 @@ void main() {
   test('application preferences persist and survive profile edits', () async {
     SharedPreferences.setMockInitialValues({});
     final repository = FakeAccountRepository();
-    final state = AppState(
-      auth: MockFirebaseAuth(
-        mockUser: MockUser(uid: 'preferences-user', email: 'demo@example.com'),
-      ),
-      accountRepository: repository,
-    );
-    await state.authReady;
+    final state = AppState(accountRepository: repository);
     await state.signIn(
       email: 'demo@example.com',
       password: 'demo123',
@@ -70,23 +62,15 @@ void main() {
       workLocation: 'Baghdad',
     );
 
-    final stored = repository.accounts['preferences-user']!;
+    final stored = repository.accounts[state.currentUser!.uid]!;
     expect(stored['skills'], ['Patient Care', 'CPR']);
     expect(stored['careerCategory'], 'medical');
     expect(stored['governorate'], 'Baghdad');
   });
 
-  test('company profile is saved and restored by Firebase UID', () async {
+  test('company profile is saved and restored by local account ID', () async {
     final repository = FakeAccountRepository();
-    final auth = MockFirebaseAuth(
-      mockUser: MockUser(
-        uid: 'company-profile-user',
-        email: 'login@masarak.example',
-        displayName: 'Masarak Ltd',
-      ),
-    );
-    final state = AppState(auth: auth, accountRepository: repository);
-    await state.authReady;
+    final state = AppState(accountRepository: repository);
     await state.signIn(
       email: 'login@masarak.example',
       password: 'company123',
@@ -101,23 +85,13 @@ void main() {
       governorate: 'Baghdad',
     );
 
-    expect(
-        repository.accounts['company-profile-user']?['accountType'], 'company');
-    expect(repository.accounts['company-profile-user']?['phone'],
-        '+964 7701234567');
-    expect(repository.accounts['company-profile-user']?['companyContactEmail'],
+    final userId = state.currentUser!.uid;
+    expect(repository.accounts[userId]?['accountType'], 'company');
+    expect(repository.accounts[userId]?['phone'], '+964 7701234567');
+    expect(repository.accounts[userId]?['companyContactEmail'],
         'contact@masarak.example');
 
-    final restored = AppState(
-      auth: MockFirebaseAuth(
-        mockUser: MockUser(
-          uid: 'company-profile-user',
-          email: 'login@masarak.example',
-        ),
-      ),
-      accountRepository: repository,
-    );
-    await restored.authReady;
+    final restored = AppState(accountRepository: repository);
     await restored.signIn(
       email: 'login@masarak.example',
       password: 'company123',
@@ -130,26 +104,41 @@ void main() {
     expect(restored.currentUser?.governorate, 'Baghdad');
   });
 
-  test('company accounts cannot sign in through employee flow', () async {
-    final repository = FakeAccountRepository()
-      ..accounts['company-user'] = {
-        'uid': 'company-user',
-        'name': 'Masarak Ltd',
-        'email': 'login@masarak.example',
-        'accountType': 'company',
-        'homeCountry': 'Iraq',
-        'profileCompletion': 0.2,
-      };
-    final state = AppState(
-      auth: MockFirebaseAuth(
-        mockUser: MockUser(
-          uid: 'company-user',
-          email: 'login@masarak.example',
-        ),
-      ),
-      accountRepository: repository,
+  test('account profiles persist locally between app states', () async {
+    SharedPreferences.setMockInitialValues({});
+    final state = AppState();
+    await state.signUpCompany(
+      companyName: 'Masarak Ltd',
+      email: 'local@masarak.example',
+      password: 'company123',
+      phone: '+964 7701234567',
+      responsiblePerson: 'Sara Ahmed',
+      governorate: 'Baghdad',
     );
-    await state.authReady;
+
+    final restored = AppState();
+    await restored.signIn(
+      email: 'local@masarak.example',
+      password: 'company123',
+      homeCountry: 'Iraq',
+      accountType: 'company',
+    );
+
+    expect(restored.currentUser?.name, 'Masarak Ltd');
+    expect(restored.currentUser?.phone, '+964 7701234567');
+    expect(restored.currentUser?.governorate, 'Baghdad');
+  });
+
+  test('company accounts cannot sign in through employee flow', () async {
+    final state = AppState(accountRepository: FakeAccountRepository());
+    await state.signUpCompany(
+      companyName: 'Masarak Ltd',
+      email: 'login@masarak.example',
+      password: 'company123',
+      phone: '+964 7701234567',
+      responsiblePerson: 'Sara Ahmed',
+      governorate: 'Baghdad',
+    );
 
     await expectLater(
       state.signIn(
@@ -158,36 +147,28 @@ void main() {
         homeCountry: 'Iraq',
       ),
       throwsA(
-        isA<FirebaseAuthException>().having(
-          (error) => error.code,
-          'code',
-          'account-type-mismatch',
-        ),
+        isA<StateError>(),
       ),
     );
   });
 
   testWidgets('app starts and shows splash screen', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(MasarakApp(
-      auth: MockFirebaseAuth(),
-      accountRepository: FakeAccountRepository(),
-    ));
+    await tester.pumpWidget(const MasarakApp());
 
     expect(find.text('مسارك'), findsWidgets);
     expect(find.byType(MaterialApp), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 250));
   });
 
   testWidgets('language selector changes locale and text direction',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(MasarakApp(
-      auth: MockFirebaseAuth(),
-      accountRepository: FakeAccountRepository(),
-    ));
+    await tester.pumpWidget(const MasarakApp());
 
     await tester.tap(find.text('English'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('AI-powered career guidance'), findsOneWidget);
     expect(tester.widget<MaterialApp>(find.byType(MaterialApp)).locale,
@@ -197,6 +178,8 @@ void main() {
     expect(Directionality.of(taglineContext), TextDirection.ltr);
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.getString('languageCode'), 'en');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 250));
   });
 
   testWidgets('notifications screen shows heading and items', (tester) async {
@@ -216,12 +199,7 @@ void main() {
   });
 
   testWidgets('sign in accepts valid details and opens home', (tester) async {
-    final state = AppState(
-      auth: MockFirebaseAuth(
-        mockUser: MockUser(email: 'demo@example.com'),
-      ),
-      accountRepository: FakeAccountRepository(),
-    );
+    final state = AppState(accountRepository: FakeAccountRepository());
     await tester.pumpWidget(ChangeNotifierProvider.value(
       value: state,
       child: const MaterialApp(
@@ -243,10 +221,7 @@ void main() {
   });
 
   testWidgets('phone sign in uses the Iraqi country code', (tester) async {
-    final state = AppState(
-      auth: MockFirebaseAuth(),
-      accountRepository: FakeAccountRepository(),
-    );
+    final state = AppState(accountRepository: FakeAccountRepository());
     await tester.pumpWidget(ChangeNotifierProvider.value(
       value: state,
       child: const MaterialApp(
@@ -268,10 +243,7 @@ void main() {
   testWidgets('sign up creates profile and opens CV upload', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final repository = FakeAccountRepository();
-    final state = AppState(
-      auth: MockFirebaseAuth(),
-      accountRepository: repository,
-    );
+    final state = AppState(accountRepository: repository);
     await tester.pumpWidget(ChangeNotifierProvider.value(
       value: state,
       child: const MaterialApp(

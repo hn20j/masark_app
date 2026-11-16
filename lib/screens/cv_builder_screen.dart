@@ -160,7 +160,6 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
       'HTML',
       'CSS',
       'SQL',
-      'Firebase',
       'Git',
       'REST APIs',
       'Linux',
@@ -328,7 +327,7 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       appBar: AppBar(
         leading:
             IconButton(icon: const Icon(Icons.arrow_forward), onPressed: _back),
@@ -350,7 +349,7 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
                       decoration: BoxDecoration(
                         color: i <= _step
                             ? AppColors.accentPink
-                            : AppColors.surfaceIndigoLight,
+                            : context.appPalette.surfaceIndigoLight,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -388,21 +387,22 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
     );
   }
 
-  Widget _wrap(String title, String subtitle, Widget child) {
+  Widget _wrap(
+      BuildContext context, String title, String subtitle, Widget child) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
-                  fontSize: 19,
+              style: TextStyle(
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: Colors.white)),
+                  color: context.appPalette.textPrimary)),
           const SizedBox(height: 6),
           Text(subtitle,
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary)),
+              style: TextStyle(
+                  fontSize: 13, color: context.appPalette.textSecondary)),
           const SizedBox(height: 24),
           child,
         ],
@@ -414,6 +414,7 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
     final customOrOtherCategoryRoles = _roles.where(
         (role) => !_roleOptions[_category]!.any((option) => option.$1 == role));
     return _wrap(
+      context,
       AppText.of(context, 'مجالك وتخصصك', 'Your field and major'),
       AppText.of(context, 'اختر المجال لتصفية التخصصات والوظائف المناسبة لك.',
           'Choose a field to filter relevant majors and job roles.'),
@@ -467,8 +468,9 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
           const SizedBox(height: 18),
           Text(
             AppText.of(context, 'الوظائف المستهدفة', 'Target job roles'),
-            style: const TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: context.appPalette.textPrimary,
+                fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -479,12 +481,13 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
               return FilterChip(
                 label: Text(AppText.of(context, role.$1, role.$2)),
                 selected: selected,
-                onSelected: (value) =>
-                    _changeSelection(_roles, role.$1, value),
-                selectedColor: AppColors.surfaceIndigoLight,
-                backgroundColor: AppColors.surfaceIndigoLight,
+                onSelected: (value) => _changeSelection(_roles, role.$1, value),
+                selectedColor: AppColors.primaryViolet,
+                backgroundColor: context.appPalette.surfaceIndigoLight,
                 labelStyle: TextStyle(
-                    color: selected ? Colors.white : AppColors.textSecondary),
+                    color: selected
+                        ? Colors.white
+                        : context.appPalette.textSecondary),
                 checkmarkColor: Colors.white,
               );
             }).toList(),
@@ -530,8 +533,9 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
           const SizedBox(height: 18),
           Text(
             AppText.of(context, 'سنوات الخبرة', 'Years of experience'),
-            style: const TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: context.appPalette.textPrimary,
+                fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -621,6 +625,7 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
     final skillsFromOtherCategories =
         _skills.where((skill) => !_skillOptions[_category]!.contains(skill));
     return _wrap(
+      context,
       AppText.of(context, 'اختر مهاراتك', 'Choose your skills'),
       AppText.of(
           context,
@@ -631,8 +636,9 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
         children: [
           Text(
             AppText.of(context, 'المهارات المقترحة', 'Suggested skills'),
-            style: const TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: context.appPalette.textPrimary,
+                fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -644,12 +650,13 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
               return FilterChip(
                 label: Text(skill),
                 selected: selected,
-                onSelected: (value) =>
-                    _changeSelection(_skills, skill, value),
-                selectedColor: AppColors.surfaceIndigoLight,
-                backgroundColor: AppColors.surfaceIndigoLight,
+                onSelected: (value) => _changeSelection(_skills, skill, value),
+                selectedColor: AppColors.primaryViolet,
+                backgroundColor: context.appPalette.surfaceIndigoLight,
                 labelStyle: TextStyle(
-                    color: selected ? Colors.white : AppColors.textSecondary),
+                    color: selected
+                        ? Colors.white
+                        : context.appPalette.textSecondary),
                 checkmarkColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -661,8 +668,9 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
           const SizedBox(height: 16),
           Text(
             AppText.of(context, 'أضف مهارة أخرى', 'Add another skill'),
-            style: const TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: context.appPalette.textPrimary,
+                fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Row(
@@ -710,6 +718,7 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
 
   Widget _stepPreferences() {
     return _wrap(
+      context,
       AppText.of(context, 'أين تريد أن يقدم الوكيل عنك؟',
           'Where should the agent apply for you?'),
       AppText.of(
@@ -733,7 +742,7 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.surfaceIndigoLight,
+              color: context.appPalette.surfaceIndigoLight,
               borderRadius: BorderRadius.circular(AppRadii.md),
             ),
             child: SwitchListTile(
@@ -743,7 +752,8 @@ class _CvBuilderScreenState extends State<CvBuilderScreen> {
               title: Text(
                   AppText.of(context, 'أوافق أيضًا على الوظائف عن بُعد',
                       'I am also open to remote jobs'),
-                  style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  style: TextStyle(
+                      color: context.appPalette.textPrimary, fontSize: 13)),
               contentPadding: EdgeInsets.zero,
             ),
           ),

@@ -1,4 +1,4 @@
-/// Shared account and job models used by app state and Firebase-backed screens.
+/// Shared account and job models used by app state and screens.
 library;
 
 class AppUser {
@@ -24,6 +24,9 @@ class AppUser {
   bool remoteOk;
   String? cvFileName;
   String? cvFilePath;
+  String? cvStoragePath;
+  String? cvMimeType;
+  int? cvFileSize;
   double profileCompletion;
 
   AppUser({
@@ -49,6 +52,9 @@ class AppUser {
     this.remoteOk = true,
     this.cvFileName,
     this.cvFilePath,
+    this.cvStoragePath,
+    this.cvMimeType,
+    this.cvFileSize,
     this.profileCompletion = 0.2,
   })  : workPreferences = workPreferences ?? [],
         skills = skills ?? [];
@@ -63,7 +69,10 @@ class Job {
   final String type; // full-time / remote / part-time
   final List<String> tags;
   final DateTime postedAt;
-  final int matchScore; // 0-100, how well it matches the user's CV
+  final int? matchScore;
+  final String? companyId;
+  final String? description;
+  final String? experience;
 
   const Job({
     required this.id,
@@ -74,7 +83,10 @@ class Job {
     required this.type,
     required this.tags,
     required this.postedAt,
-    required this.matchScore,
+    this.matchScore,
+    this.companyId,
+    this.description,
+    this.experience,
   });
 }
 
@@ -86,85 +98,36 @@ class Application {
   ApplicationStatus status;
   final DateTime submittedAt;
   final bool submittedByAgent;
+  final String? candidateId;
+  final String? candidateName;
+  final String? candidateEmail;
+  final String? companyId;
 
   Application({
     required this.id,
     required this.job,
     required this.status,
     required this.submittedAt,
-    this.submittedByAgent = true,
+    this.submittedByAgent = false,
+    this.candidateId,
+    this.candidateName,
+    this.candidateEmail,
+    this.companyId,
   });
 }
 
-/// Sample/demo data so every screen renders meaningfully without a backend.
-class DemoData {
-  DemoData._();
+class AppNotification {
+  final String id;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final bool read;
 
-  static List<Job> jobs = [
-    Job(
-      id: 'j1',
-      title: 'مطوّر تطبيقات Flutter',
-      company: 'شركة نبراس التقنية',
-      location: 'بغداد، العراق',
-      salaryRange: '1,500 - 2,200 \$',
-      type: 'دوام كامل',
-      tags: const ['Flutter', 'Dart', 'Mobile'],
-      postedAt: DateTime.now().subtract(const Duration(days: 1)),
-      matchScore: 92,
-    ),
-    Job(
-      id: 'j2',
-      title: 'محلل بيانات',
-      company: 'مجموعة الرافدين المالية',
-      location: 'أربيل، العراق',
-      salaryRange: '1,200 - 1,800 \$',
-      type: 'دوام كامل',
-      tags: const ['SQL', 'Power BI', 'Excel'],
-      postedAt: DateTime.now().subtract(const Duration(days: 2)),
-      matchScore: 81,
-    ),
-    Job(
-      id: 'j3',
-      title: 'أخصائي تسويق رقمي',
-      company: 'داماس ميديا',
-      location: 'دبي، الإمارات (عن بعد)',
-      salaryRange: '900 - 1,400 \$',
-      type: 'عن بعد',
-      tags: const ['SEO', 'Ads', 'Content'],
-      postedAt: DateTime.now().subtract(const Duration(hours: 10)),
-      matchScore: 74,
-    ),
-    Job(
-      id: 'j4',
-      title: 'مهندس شبكات',
-      company: 'اتصالات الشرق',
-      location: 'البصرة، العراق',
-      salaryRange: '1,100 - 1,600 \$',
-      type: 'دوام كامل',
-      tags: const ['Cisco', 'Networking'],
-      postedAt: DateTime.now().subtract(const Duration(days: 4)),
-      matchScore: 65,
-    ),
-  ];
-
-  static List<Application> applications = [
-    Application(
-      id: 'a1',
-      job: jobs[0],
-      status: ApplicationStatus.interview,
-      submittedAt: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-    Application(
-      id: 'a2',
-      job: jobs[1],
-      status: ApplicationStatus.submitted,
-      submittedAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    Application(
-      id: 'a3',
-      job: jobs[3],
-      status: ApplicationStatus.viewed,
-      submittedAt: DateTime.now().subtract(const Duration(hours: 5)),
-    ),
-  ];
+  const AppNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.read,
+  });
 }

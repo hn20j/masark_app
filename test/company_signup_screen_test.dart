@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:masarak/screens/company_login_screen.dart';
 import 'package:masarak/screens/company_dashboard_screen.dart';
@@ -17,7 +16,6 @@ Future<FakeAccountRepository> _pumpCompanySignupScreen(
   await tester.pumpWidget(
     ChangeNotifierProvider(
       create: (_) => AppState(
-        auth: MockFirebaseAuth(),
         accountRepository: repository,
       ),
       child: MaterialApp(
@@ -33,7 +31,6 @@ Future<void> _pumpSignInTypeScreen(WidgetTester tester) async {
   await tester.pumpWidget(
     ChangeNotifierProvider(
       create: (_) => AppState(
-        auth: MockFirebaseAuth(),
         accountRepository: FakeAccountRepository(),
       ),
       child: MaterialApp(
@@ -45,18 +42,18 @@ Future<void> _pumpSignInTypeScreen(WidgetTester tester) async {
 }
 
 Future<void> _pumpCompanyLoginScreen(WidgetTester tester) async {
+  final state = AppState(accountRepository: FakeAccountRepository());
+  await state.signUpCompany(
+    companyName: 'Masarak Ltd',
+    email: 'hiring@masarak.example',
+    password: 'company123',
+    phone: '+964 7701234567',
+    responsiblePerson: 'Sara Ahmed',
+    governorate: 'Baghdad',
+  );
   await tester.pumpWidget(
-    ChangeNotifierProvider(
-      create: (_) => AppState(
-        auth: MockFirebaseAuth(
-          mockUser: MockUser(
-            uid: 'company-user',
-            email: 'hiring@masarak.example',
-            displayName: 'Masarak Ltd',
-          ),
-        ),
-        accountRepository: FakeAccountRepository(),
-      ),
+    ChangeNotifierProvider.value(
+      value: state,
       child: MaterialApp(
         theme: AppTheme.darkTheme,
         home: const CompanyLoginScreen(),

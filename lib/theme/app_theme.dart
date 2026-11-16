@@ -5,89 +5,227 @@ import 'package:google_fonts/google_fonts.dart';
 class AppColors {
   AppColors._();
 
-  static const Color background = Color(0xFF0D1849);
-  static const Color surfaceIndigo = Color(0xFF101E4D);
-  static const Color surfaceIndigoLight = Color(0xFF162952);
+  static const Color background = Color(0xFF111116);
+  static const Color surfaceIndigo = Color(0xFF19191F);
+  static const Color surfaceIndigoLight = Color(0xFF25252E);
 
-  static const Color primaryViolet = Color(0xFF5EEFFF);
-  static const Color primaryVioletDark = Color(0xFF0D1849);
+  static const Color primaryViolet = Color(0xFF8B5CF6);
+  static const Color primaryVioletDark = Color(0xFF6D3DD1);
 
-  static const Color accentPink = Color(0xFF5EEFFF);
-  static const Color accentPinkDark = Color(0xFF00A8C4);
+  static const Color accentPink = Color(0xFF8B5CF6);
+  static const Color accentPinkDark = Color(0xFF6D3DD1);
+  static const Color accentYellow = Color(0xFFFFD166);
 
-  static const Color cardLight = Color(0xFFF6F6F6);
-  static const Color inputFill = Color(0xFFF6F6F6);
+  static const Color cardLight = Color(0xFFF8F7FA);
+  static const Color inputFill = Color(0xFFF2F0F6);
 
   static const Color black = Color(0xFF000000);
-  static const Color textPrimary = Color(0xFFF6F6F6);
-  static const Color textSecondary = Color(0xFFC4D4E8);
-  static const Color textDark = black;
-  static const Color textMuted = Color(0xFF64779F);
+  static const Color textPrimary = Color(0xFFF7F5FA);
+  static const Color textSecondary = Color(0xFFC5C1CF);
+  static const Color textDark = Color(0xFF1D1A24);
+  static const Color textMuted = Color(0xFF777180);
 
-  static const Color success = Color(0xFF3ED598);
-  static const Color warning = Color(0xFFFFC24B);
-  static const Color error = Color(0xFFFF5B6E);
+  static const Color success = Color(0xFF249C70);
+  static const Color warning = Color(0xFFE0A62E);
+  static const Color error = Color(0xFFD94B5B);
 
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0D1849), Color(0xFF162952)],
+    colors: [Color(0xFF19191F), Color(0xFF252330)],
   );
 
   static const LinearGradient pinkGradient = LinearGradient(
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
-    colors: [Color(0xFF5EEFFF), Color(0xFFF6F6F6)],
+    colors: [Color(0xFF8B5CF6), Color(0xFF7048D1)],
   );
 }
 
 class AppRadii {
   AppRadii._();
-  static const double sm = 10;
-  static const double md = 16;
-  static const double lg = 22;
+  static const double sm = 12;
+  static const double md = 18;
+  static const double lg = 24;
   static const double pill = 100;
+}
+
+class AppSpacing {
+  AppSpacing._();
+  static const double xs = 8;
+  static const double sm = 12;
+  static const double md = 16;
+  static const double lg = 24;
+  static const double xl = 32;
+}
+
+@immutable
+class AppPalette extends ThemeExtension<AppPalette> {
+  final Color background;
+  final Color surfaceIndigo;
+  final Color surfaceIndigoLight;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color outline;
+  final LinearGradient heroGradient;
+
+  const AppPalette({
+    required this.background,
+    required this.surfaceIndigo,
+    required this.surfaceIndigoLight,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textMuted,
+    required this.outline,
+    required this.heroGradient,
+  });
+
+  @override
+  AppPalette copyWith({
+    Color? background,
+    Color? surfaceIndigo,
+    Color? surfaceIndigoLight,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? textMuted,
+    Color? outline,
+    LinearGradient? heroGradient,
+  }) {
+    return AppPalette(
+      background: background ?? this.background,
+      surfaceIndigo: surfaceIndigo ?? this.surfaceIndigo,
+      surfaceIndigoLight: surfaceIndigoLight ?? this.surfaceIndigoLight,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      textMuted: textMuted ?? this.textMuted,
+      outline: outline ?? this.outline,
+      heroGradient: heroGradient ?? this.heroGradient,
+    );
+  }
+
+  @override
+  AppPalette lerp(ThemeExtension<AppPalette>? other, double t) {
+    if (other is! AppPalette) return this;
+    return AppPalette(
+      background: Color.lerp(background, other.background, t)!,
+      surfaceIndigo: Color.lerp(surfaceIndigo, other.surfaceIndigo, t)!,
+      surfaceIndigoLight:
+          Color.lerp(surfaceIndigoLight, other.surfaceIndigoLight, t)!,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      textMuted: Color.lerp(textMuted, other.textMuted, t)!,
+      outline: Color.lerp(outline, other.outline, t)!,
+      heroGradient: LinearGradient.lerp(heroGradient, other.heroGradient, t)!,
+    );
+  }
+}
+
+extension AppPaletteContext on BuildContext {
+  AppPalette get appPalette => Theme.of(this).extension<AppPalette>()!;
 }
 
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get darkTheme {
-    final base = ThemeData.dark(useMaterial3: true);
-    final textTheme = GoogleFonts.cairoTextTheme(base.textTheme).apply(
-      bodyColor: AppColors.textPrimary,
-      displayColor: AppColors.textPrimary,
+  static ThemeData get darkTheme => _buildTheme(Brightness.dark);
+  static ThemeData get lightTheme => _buildTheme(Brightness.light);
+
+  static ThemeData _buildTheme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final palette = AppPalette(
+      background: isDark ? const Color(0xFF111116) : const Color(0xFFF6F5F8),
+      surfaceIndigo: isDark ? const Color(0xFF19191F) : const Color(0xFFFFFFFF),
+      surfaceIndigoLight:
+          isDark ? const Color(0xFF25252E) : const Color(0xFFEDEAF3),
+      textPrimary: isDark ? const Color(0xFFF7F5FA) : const Color(0xFF211E28),
+      textSecondary: isDark ? const Color(0xFFC5C1CF) : const Color(0xFF625D6B),
+      textMuted: isDark ? const Color(0xFFAAA5B2) : const Color(0xFF777180),
+      outline: isDark
+          ? Colors.white.withValues(alpha: 0.1)
+          : const Color(0xFF241E30).withValues(alpha: 0.1),
+      heroGradient: isDark
+          ? const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF19191F), Color(0xFF252330)],
+            )
+          : const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFECE5FC), Color(0xFFF8F6FC)],
+            ),
     );
+    final base = isDark
+        ? ThemeData.dark(useMaterial3: true)
+        : ThemeData.light(useMaterial3: true);
+    final textTheme = GoogleFonts.cairoTextTheme(base.textTheme)
+        .apply(
+          bodyColor: palette.textPrimary,
+          displayColor: palette.textPrimary,
+        )
+        .copyWith(
+          headlineLarge: GoogleFonts.cairo(
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+            color: palette.textPrimary,
+          ),
+          headlineMedium: GoogleFonts.cairo(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: palette.textPrimary,
+          ),
+          titleLarge: GoogleFonts.cairo(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
+          titleMedium: GoogleFonts.cairo(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: palette.textPrimary,
+          ),
+        );
 
     return base.copyWith(
-      scaffoldBackgroundColor: AppColors.background,
+      brightness: brightness,
+      scaffoldBackgroundColor: palette.background,
       primaryColor: AppColors.primaryViolet,
       textTheme: textTheme,
+      extensions: [palette],
       colorScheme: base.colorScheme.copyWith(
+        brightness: brightness,
         primary: AppColors.primaryViolet,
-        onPrimary: AppColors.surfaceIndigo,
-        secondary: AppColors.accentPink,
-        onSecondary: AppColors.surfaceIndigo,
-        surface: AppColors.surfaceIndigo,
+        onPrimary: Colors.white,
+        secondary: AppColors.accentYellow,
+        onSecondary: AppColors.textDark,
+        surface: palette.surfaceIndigo,
+        onSurface: palette.textPrimary,
         error: AppColors.error,
       ),
+      dividerColor: palette.outline,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: GoogleFonts.cairo(
-          fontSize: 18,
+          fontSize: 19,
           fontWeight: FontWeight.w700,
-          color: AppColors.textPrimary,
+          color: palette.textPrimary,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: palette.textPrimary),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.inputFill,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
         hintStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 14),
+        labelStyle: GoogleFonts.cairo(color: AppColors.textMuted, fontSize: 13),
+        prefixIconColor: AppColors.textMuted,
+        suffixIconColor: AppColors.textMuted,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
           borderSide: BorderSide.none,
@@ -108,8 +246,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.cardLight,
-          foregroundColor: AppColors.textDark,
+          backgroundColor: AppColors.primaryViolet,
+          foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(52),
           textStyle:
               GoogleFonts.cairo(fontWeight: FontWeight.w700, fontSize: 15),
@@ -120,7 +258,8 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.textSecondary,
+          foregroundColor:
+              isDark ? AppColors.primaryViolet : AppColors.primaryVioletDark,
           textStyle:
               GoogleFonts.cairo(fontWeight: FontWeight.w600, fontSize: 13),
         ),
@@ -133,20 +272,32 @@ class AppTheme {
         ),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: AppColors.surfaceIndigo,
-        selectedItemColor: AppColors.accentPink,
-        unselectedItemColor: AppColors.textSecondary,
+        backgroundColor: palette.surfaceIndigo,
+        selectedItemColor: AppColors.primaryViolet,
+        unselectedItemColor: palette.textSecondary.withValues(alpha: 0.8),
         type: BottomNavigationBarType.fixed,
         showUnselectedLabels: true,
         selectedLabelStyle:
             GoogleFonts.cairo(fontSize: 11, fontWeight: FontWeight.w700),
         unselectedLabelStyle: GoogleFonts.cairo(fontSize: 11),
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: palette.surfaceIndigo,
+        titleTextStyle: GoogleFonts.cairo(
+          color: palette.textPrimary,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: GoogleFonts.cairo(color: palette.textSecondary),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+      ),
     );
   }
 }
 
-/// Reusable primary CTA button with a cyan outline used across the app.
+/// Reusable pill-shaped primary action.
 class PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -168,9 +319,8 @@ class PrimaryButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: loading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.surfaceIndigo,
+          backgroundColor: AppColors.primaryViolet,
           foregroundColor: Colors.white,
-          side: const BorderSide(color: AppColors.accentPink, width: 1.4),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.pill),
           ),
@@ -198,7 +348,7 @@ class PrimaryButton extends StatelessWidget {
   }
 }
 
-/// Hero CTA button, used for the primary "Upload CV" action.
+/// Prominent CTA button, used for the primary "Upload CV" action.
 class PinkButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -216,10 +366,6 @@ class PinkButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: AppColors.pinkGradient,
           borderRadius: BorderRadius.circular(AppRadii.pill),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x555EEFFF), blurRadius: 18, offset: Offset(0, 8)),
-          ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -230,13 +376,13 @@ class PinkButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 18, color: AppColors.black),
+                  Icon(icon, size: 18, color: Colors.white),
                   const SizedBox(width: 8),
                 ],
                 Text(
                   label,
                   style: GoogleFonts.cairo(
-                    color: AppColors.black,
+                    color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
@@ -270,7 +416,9 @@ class OutlineButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
+          foregroundColor: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white
+              : AppColors.textDark,
           side: const BorderSide(color: AppColors.primaryViolet, width: 1.4),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadii.pill)),

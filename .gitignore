@@ -55,10 +55,6 @@ app.*.map.json
 *.keystore
 *.p12
 
-# Firebase local data
-.firebase/
-/dataconnect/.dataconnect/
-
 # Local AI assistant skill installations
 /.agents/
 /.claude/

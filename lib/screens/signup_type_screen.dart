@@ -43,7 +43,7 @@ class _SignupTypeScreenState extends State<SignupTypeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -60,7 +60,7 @@ class _SignupTypeScreenState extends State<SignupTypeScreen> {
                 height: 64,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceIndigoLight,
+                  color: context.appPalette.surfaceIndigoLight,
                   borderRadius: BorderRadius.circular(AppRadii.md),
                 ),
                 child: Icon(
@@ -78,8 +78,8 @@ class _SignupTypeScreenState extends State<SignupTypeScreen> {
                   widget.signInMode ? 'تسجيل الدخول' : 'إنشاء حساب جديد',
                   widget.signInMode ? 'Sign in' : 'Create a new account',
                 ),
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: context.appPalette.textPrimary,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                 ),
@@ -95,8 +95,8 @@ class _SignupTypeScreenState extends State<SignupTypeScreen> {
                       ? 'Choose your account type to sign in'
                       : 'Choose your account type to continue',
                 ),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.appPalette.textSecondary,
                   fontSize: 14,
                 ),
               ),
@@ -174,12 +174,12 @@ class _AccountTypeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor =
-        selected ? AppColors.accentPink : Colors.white.withValues(alpha: 0.12);
+        selected ? AppColors.accentPink : context.appPalette.outline;
 
     return Material(
       color: selected
-          ? AppColors.surfaceIndigoLight
-          : AppColors.surfaceIndigo.withValues(alpha: 0.72),
+          ? context.appPalette.surfaceIndigoLight
+          : context.appPalette.surfaceIndigo.withValues(alpha: 0.72),
       borderRadius: BorderRadius.circular(AppRadii.lg),
       child: InkWell(
         onTap: onTap,
@@ -210,8 +210,8 @@ class _AccountTypeCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: context.appPalette.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
@@ -219,8 +219,8 @@ class _AccountTypeCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       description,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: context.appPalette.textSecondary,
                         fontSize: 12,
                       ),
                     ),

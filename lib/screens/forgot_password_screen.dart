@@ -1,9 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/auth_error_message.dart';
 import 'package:provider/provider.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -41,18 +39,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             email: _emailController.text.trim(),
           );
       if (mounted) setState(() => _emailSent = true);
-    } on FirebaseAuthException catch (error) {
-      if (!mounted) return;
-      if (error.code == 'user-not-found') {
-        setState(() => _emailSent = true);
-      } else {
-        _showMessage(
-            firebaseAuthErrorMessage(context, error, signingUp: false));
-      }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        _showMessage(AppText.of(context, 'تعذر إرسال رسالة الاستعادة.',
-            'Could not send the reset email. Please try again.'));
+        _showMessage(AppState.errorMessage(error));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -67,7 +56,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.appPalette.background,
       appBar: AppBar(
           title:
               Text(AppText.of(context, 'استعادة الحساب', 'Recover account'))),
@@ -92,8 +81,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           Text(
             AppText.of(context, 'نسيت كلمة المرور؟', 'Forgot your password?'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.appPalette.textPrimary,
               fontSize: 23,
               fontWeight: FontWeight.w800,
             ),
@@ -105,8 +94,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 'أدخل بريدك الإلكتروني وسنرسل إليك رابطًا لإعادة تعيين كلمة المرور.',
                 'Enter your email and we will send a password reset link.'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: context.appPalette.textSecondary,
               fontSize: 14,
               height: 1.7,
             ),
@@ -164,8 +153,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Text(
           AppText.of(context, 'تحقق من بريدك', 'Check your email'),
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: context.appPalette.textPrimary,
             fontSize: 22,
             fontWeight: FontWeight.w800,
           ),
@@ -177,8 +166,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               'إذا كان البريد مرتبطًا بحساب، فستصلك رسالة لإعادة تعيين كلمة المرور. تحقق أيضًا من مجلد الرسائل غير المرغوب فيها.',
               'If an account matches that email, a password reset link will arrive shortly. Check your spam folder too.'),
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
+          style: TextStyle(
+            color: context.appPalette.textSecondary,
             fontSize: 14,
             height: 1.8,
           ),
@@ -204,7 +193,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         width: 76,
         height: 76,
         decoration: BoxDecoration(
-          color: AppColors.surfaceIndigoLight,
+          color: context.appPalette.surfaceIndigoLight,
           borderRadius: BorderRadius.circular(22),
         ),
         child: Icon(icon, color: AppColors.accentPink, size: 34),

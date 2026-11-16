@@ -1,66 +1,136 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/models.dart';
 import '../services/account_repository.dart';
-import '../services/push_notification_service.dart';
+import '../services/auth_repository.dart';
+import '../services/cv_storage_repository.dart';
+import '../services/marketplace_repository.dart';
 
 /// App-wide state shared via Provider.
 class AppState extends ChangeNotifier {
-  final FirebaseAuth _auth;
   final AccountRepository _accountRepository;
-  final Completer<void> _authReadyCompleter = Completer<void>();
-  late final StreamSubscription<User?> _authSubscription;
-  late final StreamSubscription<String> _pushTokenSubscription;
-  String? _phoneVerificationId;
-  ConfirmationResult? _webPhoneConfirmation;
+  final AuthRepository _authRepository;
+  final MarketplaceRepository _marketplaceRepository;
+  final CvStorageRepository _cvStorageRepository;
+  StreamSubscription<AuthIdentity?>? _authSubscription;
+  StreamSubscription<List<Job>>? _jobsSubscription;
+  Future<void>? _initializeFuture;
+  int _jobWatchVersion = 0;
+  bool _localeChanged = false;
+  bool _themeModeChanged = false;
 
   AppUser? currentUser;
-  String? pushToken;
-  bool agentAutoApplyEnabled = true;
+  List<Job> jobs = [];
+  List<Job> companyJobs = [];
+  List<Application> applications = [];
+  List<Application> companyApplications = [];
+  List<AppNotification> notifications = [];
+  bool authInitializing = true;
+  bool jobsLoading = false;
+  bool applicationsLoading = false;
+  bool notificationsLoading = false;
+  String? authError;
+  String? jobsError;
+  String? applicationsError;
+  String? notificationsError;
   Locale locale = const Locale('ar');
-  bool _localeChanged = false;
+  ThemeMode themeMode = ThemeMode.dark;
 
   AppState({
-    FirebaseAuth? auth,
     AccountRepository? accountRepository,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _accountRepository =
-            accountRepository ?? FirestoreAccountRepository() {
-    _authSubscription = _auth.authStateChanges().listen((user) {
-      _setCurrentUser(user);
-      if (!_authReadyCompleter.isCompleted) _authReadyCompleter.complete();
-    });
-    _pushTokenSubscription =
-        PushNotificationService.instance.tokenChanges.listen((token) {
-      pushToken = token;
+    AuthRepository? authRepository,
+    MarketplaceRepository? marketplaceRepository,
+    CvStorageRepository? cvStorageRepository,
+  })  : _accountRepository =
+            accountRepository ?? FirebaseAccountRepository.createDefault(),
+        _authRepository =
+            authRepository ?? FirebaseAuthRepository.createDefault(),
+        _marketplaceRepository = marketplaceRepository ??
+            FirebaseMarketplaceRepository.createDefault(),
+        _cvStorageRepository =
+            cvStorageRepository ?? FirebaseCvStorageRepository.createDefault();
+
+  Future<void> initialize() => _initializeFuture ??= _initialize();
+
+  Future<void> _initialize() async {
+    await loadLocale();
+    await loadThemeMode();
+    _authSubscription = _authRepository.authStateChanges.listen(
+      (identity) => unawaited(_handleAuthStateChanged(identity)),
+      onError: (Object error) {
+        authError = _errorMessage(error);
+        authInitializing = false;
+        notifyListeners();
+      },
+    );
+    try {
+      await _handleAuthStateChanged(_authRepository.currentUser);
+    } finally {
+      authInitializing = false;
       notifyListeners();
-    });
+    }
   }
 
-  Future<void> get authReady => _authReadyCompleter.future;
+  Future<void> _handleAuthStateChanged(AuthIdentity? identity) async {
+    final watchVersion = ++_jobWatchVersion;
+    final jobsSubscription = _jobsSubscription;
+    _jobsSubscription = null;
+    await jobsSubscription?.cancel();
+    if (watchVersion != _jobWatchVersion) return;
 
-  Future<String?> enablePushNotifications() async {
-    final token =
-        await PushNotificationService.instance.requestPermissionAndGetToken();
-    pushToken = token;
+    if (identity == null) {
+      currentUser = null;
+      jobs = [];
+      companyJobs = [];
+      applications = [];
+      companyApplications = [];
+      notifications = [];
+      notifyListeners();
+      return;
+    }
+
+    currentUser = AppUser(
+      uid: identity.uid,
+      name: identity.displayName ?? identity.email?.split('@').first ?? '',
+      email: identity.email ?? '',
+      homeCountry: 'Iraq',
+    );
+    authError = null;
     notifyListeners();
-    return token;
+    try {
+      await _restoreProfileDetails(
+        identity.uid,
+        fallbackAccountType: 'employee',
+        createIfMissing: false,
+      );
+      if (currentUser?.uid == identity.uid) {
+        _watchPublishedJobs(watchVersion);
+        if (currentUser?.accountType == 'company') {
+          await refreshCompanyJobs();
+          await refreshCompanyApplications();
+          await refreshNotifications();
+        } else {
+          await refreshApplications();
+          await refreshNotifications();
+        }
+      }
+    } catch (error) {
+      authError = _errorMessage(error);
+      notifyListeners();
+    }
   }
 
   Future<void> loadLocale() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final languageCode = preferences.getString('languageCode');
-      if (!_localeChanged && (languageCode == 'ar' || languageCode == 'en')) {
-        locale = Locale(languageCode!);
-        notifyListeners();
-      }
-    } catch (_) {}
+    final preferences = await SharedPreferences.getInstance();
+    final languageCode = preferences.getString('languageCode');
+    if (!_localeChanged && (languageCode == 'ar' || languageCode == 'en')) {
+      locale = Locale(languageCode!);
+      notifyListeners();
+    }
   }
 
   Future<void> setLocale(Locale value) async {
@@ -70,10 +140,29 @@ class AppState extends ChangeNotifier {
       locale = value;
       notifyListeners();
     }
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString('languageCode', value.languageCode);
-    } catch (_) {}
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('languageCode', value.languageCode);
+  }
+
+  Future<void> loadThemeMode() async {
+    final preferences = await SharedPreferences.getInstance();
+    final storedMode = preferences.getString('themeMode');
+    if (!_themeModeChanged &&
+        (storedMode == ThemeMode.light.name ||
+            storedMode == ThemeMode.dark.name)) {
+      themeMode = ThemeMode.values.byName(storedMode!);
+      notifyListeners();
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode value) async {
+    _themeModeChanged = true;
+    if (themeMode != value) {
+      themeMode = value;
+      notifyListeners();
+    }
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('themeMode', value.name);
   }
 
   Future<void> signIn({
@@ -82,117 +171,30 @@ class AppState extends ChangeNotifier {
     required String homeCountry,
     String accountType = 'employee',
   }) async {
-    final credential = await _auth.signInWithEmailAndPassword(
+    _validateEmailAndPassword(email, password);
+    final identity = await _authRepository.signIn(
       email: email,
       password: password,
     );
-    _setCurrentUser(credential.user, homeCountry: homeCountry);
-    final user = credential.user;
-    if (user == null) {
-      throw StateError('Firebase Authentication returned no signed-in user.');
-    }
-    await _restoreProfileDetails(user.uid, fallbackAccountType: accountType);
+    currentUser = AppUser(
+      uid: identity.uid,
+      name: identity.displayName ?? email.trim().split('@').first,
+      email: identity.email ?? email.trim().toLowerCase(),
+      homeCountry: homeCountry,
+    );
+    await _restoreProfileDetails(
+      identity.uid,
+      fallbackAccountType: accountType,
+      createIfMissing: true,
+    );
     if (currentUser?.accountType != accountType) {
-      throw FirebaseAuthException(
-        code: 'account-type-mismatch',
-        message: 'This account uses a different account type.',
-      );
+      currentUser = null;
+      await _authRepository.signOut();
+      notifyListeners();
+      throw StateError('This account uses a different account type.');
     }
-  }
-
-  Future<void> sendPhoneVerificationCode({
-    required String phoneNumber,
-    required VoidCallback onCodeSent,
-    required ValueChanged<FirebaseAuthException> onVerificationFailed,
-    required ValueChanged<PhoneAuthCredential> onVerificationCompleted,
-  }) async {
-    if (kIsWeb) {
-      _webPhoneConfirmation = await _auth.signInWithPhoneNumber(phoneNumber);
-      onCodeSent();
-      return;
-    }
-
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: onVerificationCompleted,
-      verificationFailed: onVerificationFailed,
-      codeSent: (verificationId, _) {
-        _phoneVerificationId = verificationId;
-        onCodeSent();
-      },
-      codeAutoRetrievalTimeout: (verificationId) {
-        _phoneVerificationId = verificationId;
-      },
-    );
-  }
-
-  Future<UserCredential> confirmPhoneCode(String smsCode) async {
-    late final UserCredential credential;
-    if (kIsWeb) {
-      final confirmation = _webPhoneConfirmation;
-      if (confirmation == null) {
-        throw FirebaseAuthException(
-          code: 'missing-verification-id',
-          message: 'Request a verification code first.',
-        );
-      }
-      credential = await confirmation.confirm(smsCode);
-      _webPhoneConfirmation = null;
-    } else {
-      final verificationId = _phoneVerificationId;
-      if (verificationId == null) {
-        throw FirebaseAuthException(
-          code: 'missing-verification-id',
-          message: 'Request a verification code first.',
-        );
-      }
-      credential = await _auth.signInWithCredential(
-        PhoneAuthProvider.credential(
-          verificationId: verificationId,
-          smsCode: smsCode,
-        ),
-      );
-      _phoneVerificationId = null;
-    }
-    _setCurrentUser(credential.user);
-    return credential;
-  }
-
-  Future<UserCredential> signInWithPhoneCredential(
-    PhoneAuthCredential phoneCredential,
-  ) async {
-    final credential = await _auth.signInWithCredential(phoneCredential);
-    _setCurrentUser(credential.user);
-    return credential;
-  }
-
-  Future<void> completePhoneSignUpProfile({
-    required String name,
-    required DateTime birthdate,
-    required String governorate,
-    required String governorateRegion,
-    required String academicAchievement,
-    required List<String> workPreferences,
-    required String workLocation,
-  }) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw FirebaseAuthException(
-        code: 'no-current-user',
-        message: 'Phone verification is required before profile creation.',
-      );
-    }
-    await user.updateDisplayName(name);
-    _setCurrentUser(user, homeCountry: 'Iraq', fallbackName: name);
-    currentUser!.accountType = 'employee';
-    await updateProfileDetails(
-      birthdate: birthdate,
-      governorate: governorate,
-      governorateRegion: governorateRegion,
-      academicAchievement: academicAchievement,
-      workPreferences: workPreferences,
-      workLocation: workLocation,
-    );
+    notifyListeners();
+    await _refreshSignedInData();
   }
 
   Future<void> signUp({
@@ -207,25 +209,32 @@ class AppState extends ChangeNotifier {
     required List<String> workPreferences,
     required String workLocation,
   }) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
+    _validateEmailAndPassword(email, password);
+    final identity = await _authRepository.createAccount(
       email: email,
       password: password,
+      displayName: name,
     );
-    final user = credential.user;
-    if (user == null) {
-      throw StateError('Firebase Authentication returned no new user.');
+    currentUser = AppUser(
+      uid: identity.uid,
+      name: name.trim(),
+      email: identity.email ?? email.trim().toLowerCase(),
+      homeCountry: homeCountry,
+    );
+    try {
+      await updateProfileDetails(
+        birthdate: birthdate,
+        governorate: governorate,
+        governorateRegion: governorateRegion,
+        academicAchievement: academicAchievement,
+        workPreferences: workPreferences,
+        workLocation: workLocation,
+      );
+    } catch (_) {
+      currentUser = null;
+      await _authRepository.signOut();
+      rethrow;
     }
-    await user.updateDisplayName(name);
-    _setCurrentUser(user, homeCountry: homeCountry, fallbackName: name);
-    currentUser!.accountType = 'employee';
-    await updateProfileDetails(
-      birthdate: birthdate,
-      governorate: governorate,
-      governorateRegion: governorateRegion,
-      academicAchievement: academicAchievement,
-      workPreferences: workPreferences,
-      workLocation: workLocation,
-    );
   }
 
   Future<void> signUpCompany({
@@ -236,89 +245,92 @@ class AppState extends ChangeNotifier {
     required String responsiblePerson,
     required String governorate,
   }) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
+    _validateEmailAndPassword(email, password);
+    final identity = await _authRepository.createAccount(
       email: email,
       password: password,
+      displayName: companyName,
     );
-    final user = credential.user;
-    if (user == null) {
-      throw StateError('Firebase Authentication returned no new user.');
-    }
-    await user.updateDisplayName(companyName);
-    _setCurrentUser(
-      user,
+    currentUser = AppUser(
+      uid: identity.uid,
+      name: companyName.trim(),
+      email: identity.email ?? email.trim().toLowerCase(),
+      accountType: 'company',
       homeCountry: 'Iraq',
-      fallbackName: companyName,
+      phone: phone,
+      responsiblePerson: responsiblePerson,
+      companyContactEmail: identity.email ?? email.trim().toLowerCase(),
+      governorate: governorate,
     );
-    final company = currentUser!;
-    company
-      ..accountType = 'company'
-      ..phone = phone
-      ..responsiblePerson = responsiblePerson
-      ..companyContactEmail = email
-      ..governorate = governorate;
-    await _saveAccountProfile(company);
-  }
-
-  Future<void> sendPasswordResetEmail({required String email}) {
-    return _auth.sendPasswordResetEmail(email: email);
-  }
-
-  void _setCurrentUser(
-    User? user, {
-    String homeCountry = 'Iraq',
-    String? fallbackName,
-  }) {
-    if (user == null) {
+    try {
+      await _saveAccountProfile(currentUser!);
+      notifyListeners();
+    } catch (_) {
       currentUser = null;
-      pushToken = null;
-    } else {
-      final previousUser = currentUser;
-      final email = user.email ?? '';
-      final displayName = user.displayName?.trim();
-      final sameUser = previousUser?.uid == user.uid;
-      if (!sameUser) pushToken = null;
-      currentUser = AppUser(
-        uid: user.uid,
-        name: displayName?.isNotEmpty == true
-            ? displayName!
-            : fallbackName ?? email.split('@').first,
-        email: email,
-        accountType:
-            sameUser ? previousUser!.accountType : 'employee',
-        homeCountry: sameUser ? previousUser!.homeCountry : homeCountry,
-        phone: sameUser ? previousUser!.phone : user.phoneNumber,
-        responsiblePerson:
-            sameUser ? previousUser!.responsiblePerson : null,
-        companyContactEmail:
-            sameUser ? previousUser!.companyContactEmail : null,
-        cvFileName: sameUser ? previousUser!.cvFileName : null,
-        cvFilePath: sameUser ? previousUser!.cvFilePath : null,
-        profileCompletion: sameUser ? previousUser!.profileCompletion : 0.2,
-        birthdate: sameUser ? previousUser!.birthdate : null,
-        governorate: sameUser ? previousUser!.governorate : null,
-        governorateRegion: sameUser ? previousUser!.governorateRegion : null,
-        academicAchievement:
-            sameUser ? previousUser!.academicAchievement : null,
-        workPreferences: sameUser ? List.of(previousUser!.workPreferences) : [],
-        workLocation: sameUser ? previousUser!.workLocation : null,
-        skills: sameUser ? List.of(previousUser!.skills) : [],
-        careerCategory: sameUser ? previousUser!.careerCategory : null,
-        universityMajor: sameUser ? previousUser!.universityMajor : null,
-        yearsExperience: sameUser ? previousUser!.yearsExperience : null,
-        preferredCountry: sameUser ? previousUser!.preferredCountry : 'Iraq',
-        remoteOk: sameUser ? previousUser!.remoteOk : true,
+      await _authRepository.signOut();
+      rethrow;
+    }
+  }
+
+  void _validateEmailAndPassword(String email, String password) {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (!_isValidEmail(normalizedEmail)) {
+      throw StateError('Enter a valid email address.');
+    }
+    if (password.length < 6) {
+      throw StateError('Use a password of at least 6 characters.');
+    }
+  }
+
+  bool _isValidEmail(String email) =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    if (!_isValidEmail(email.trim())) {
+      throw StateError('Enter a valid email address.');
+    }
+    await _authRepository.sendPasswordResetEmail(email: email);
+  }
+
+  Future<bool> updateAccount({
+    required String name,
+    required String email,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
+    final user = currentUser;
+    if (user == null) throw StateError('A signed-in user is required.');
+    final normalizedEmail = email.trim().toLowerCase();
+    if (!_isValidEmail(normalizedEmail)) {
+      throw StateError('Enter a valid email address.');
+    }
+    final credentialsChanged = normalizedEmail != user.email ||
+        (newPassword != null && newPassword.isNotEmpty);
+    var emailChangePending = false;
+    if (credentialsChanged) {
+      if (currentPassword == null || currentPassword.isEmpty) {
+        throw StateError('Enter your current password to continue.');
+      }
+      if (newPassword != null &&
+          newPassword.isNotEmpty &&
+          newPassword.length < 6) {
+        throw StateError('Use a password of at least 6 characters.');
+      }
+      emailChangePending = await _authRepository.updateCredentials(
+        currentPassword: currentPassword,
+        email: normalizedEmail,
+        newPassword: newPassword,
       );
     }
+    user.name = name.trim();
+    if (!emailChangePending) user.email = normalizedEmail;
+    await _saveAccountProfile(user);
+    if (emailChangePending) {
+      notifyListeners();
+      return true;
+    }
     notifyListeners();
-  }
-
-  void updateAccount({required String name, required String email}) {
-    if (currentUser == null) return;
-    currentUser!
-      ..name = name
-      ..email = email;
-    notifyListeners();
+    return false;
   }
 
   Future<void> updateProfileDetails({
@@ -330,7 +342,7 @@ class AppState extends ChangeNotifier {
     required String workLocation,
   }) async {
     final user = currentUser;
-    if (user == null) return;
+    if (user == null) throw StateError('A signed-in user is required.');
     user
       ..birthdate = birthdate
       ..governorate = governorate
@@ -370,14 +382,16 @@ class AppState extends ChangeNotifier {
   }
 
   Map<String, Object?> _accountData(AppUser user) => {
+        'uid': user.uid,
         'name': user.name,
         'email': user.email,
         'accountType': user.accountType,
+        'role': user.accountType,
         'homeCountry': user.homeCountry,
         'phone': user.phone,
         'responsiblePerson': user.responsiblePerson,
         'companyContactEmail': user.companyContactEmail,
-        'birthdate': user.birthdate,
+        'birthdate': user.birthdate?.toIso8601String(),
         'governorate': user.governorate,
         'governorateRegion': user.governorateRegion,
         'academicAchievement': user.academicAchievement,
@@ -390,12 +404,14 @@ class AppState extends ChangeNotifier {
         'preferredCountry': user.preferredCountry,
         'remoteOk': user.remoteOk,
         'cvFileName': user.cvFileName,
+        'cvStoragePath': user.cvStoragePath,
+        'cvMimeType': user.cvMimeType,
+        'cvFileSize': user.cvFileSize,
         'profileCompletion': user.profileCompletion,
       };
 
-  Future<void> _saveAccountProfile(AppUser user) {
-    return _accountRepository.saveAccount(user.uid, _accountData(user));
-  }
+  Future<void> _saveAccountProfile(AppUser user) =>
+      _accountRepository.saveAccount(user.uid, _accountData(user));
 
   Future<void> updateCompanyProfile({
     required String companyName,
@@ -440,14 +456,12 @@ class AppState extends ChangeNotifier {
     bool createIfMissing = true,
   }) async {
     final user = currentUser;
-    if (user != null) {
-      return _restoreProfileDetails(
-        user.uid,
-        fallbackAccountType: fallbackAccountType,
-        createIfMissing: createIfMissing,
-      );
-    }
-    return false;
+    if (user == null) return false;
+    return _restoreProfileDetails(
+      user.uid,
+      fallbackAccountType: fallbackAccountType,
+      createIfMissing: createIfMissing,
+    );
   }
 
   Future<bool> _restoreProfileDetails(
@@ -470,7 +484,8 @@ class AppState extends ChangeNotifier {
     final birthdate = profile['birthdate'];
     current
       ..name = profile['name'] as String? ?? current.name
-      ..email = profile['email'] as String? ?? current.email
+      ..email = _authRepository.currentUser?.email ??
+          (profile['email'] as String? ?? current.email)
       ..accountType = profile['accountType'] == 'company'
           ? 'company'
           : profile['accountType'] == 'employee'
@@ -480,10 +495,10 @@ class AppState extends ChangeNotifier {
       ..phone = profile['phone'] as String?
       ..responsiblePerson = profile['responsiblePerson'] as String?
       ..companyContactEmail = profile['companyContactEmail'] as String?
-      ..birthdate = birthdate is Timestamp
-          ? birthdate.toDate()
-          : birthdate is DateTime
-              ? birthdate
+      ..birthdate = birthdate is DateTime
+          ? birthdate
+          : birthdate is String
+              ? DateTime.tryParse(birthdate)
               : null
       ..governorate = profile['governorate'] as String?
       ..governorateRegion = profile['governorateRegion'] as String?
@@ -497,6 +512,9 @@ class AppState extends ChangeNotifier {
       ..preferredCountry = profile['preferredCountry'] as String? ?? 'Iraq'
       ..remoteOk = profile['remoteOk'] as bool? ?? true
       ..cvFileName = profile['cvFileName'] as String?
+      ..cvStoragePath = profile['cvStoragePath'] as String?
+      ..cvMimeType = profile['cvMimeType'] as String?
+      ..cvFileSize = profile['cvFileSize'] as int?
       ..profileCompletion =
           (profile['profileCompletion'] as num?)?.toDouble() ?? 0.2;
     notifyListeners();
@@ -506,40 +524,245 @@ class AppState extends ChangeNotifier {
   List<String> _stringList(Object? value) =>
       (value as List<dynamic>? ?? []).whereType<String>().toList();
 
-  Future<void> attachCv(String fileName, String path) async {
+  Future<void> attachCv({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
     final user = currentUser;
-    if (user == null) return;
+    if (user == null) throw StateError('A signed-in user is required.');
+    const maxSize = 5 * 1024 * 1024;
+    if (bytes.isEmpty || bytes.length > maxSize) {
+      throw StateError('Choose a CV file smaller than 5 MB.');
+    }
+    final storagePath = await _cvStorageRepository.upload(
+      uid: user.uid,
+      bytes: bytes,
+      fileName: fileName,
+      contentType: mimeType,
+    );
+    final oldValues = (
+      user.cvFileName,
+      user.cvStoragePath,
+      user.cvMimeType,
+      user.cvFileSize,
+      user.profileCompletion,
+    );
     user
       ..cvFileName = fileName
-      ..cvFilePath = path
+      ..cvStoragePath = storagePath
+      ..cvMimeType = mimeType
+      ..cvFileSize = bytes.length
       ..profileCompletion = 0.65;
-    await _saveAccountProfile(user);
+    try {
+      await _saveAccountProfile(user);
+    } catch (_) {
+      user
+        ..cvFileName = oldValues.$1
+        ..cvStoragePath = oldValues.$2
+        ..cvMimeType = oldValues.$3
+        ..cvFileSize = oldValues.$4
+        ..profileCompletion = oldValues.$5;
+      rethrow;
+    }
     notifyListeners();
   }
 
   Future<void> completeProfile() async {
     final user = currentUser;
-    if (user == null) return;
+    if (user == null) throw StateError('A signed-in user is required.');
     user.profileCompletion = 1.0;
     await _saveAccountProfile(user);
     notifyListeners();
   }
 
-  void toggleAgentAutoApply(bool value) {
-    agentAutoApplyEnabled = value;
+  Future<void> _refreshSignedInData() async {
+    if (currentUser?.accountType == 'company') {
+      await refreshCompanyJobs();
+      await refreshCompanyApplications();
+      await refreshNotifications();
+    } else {
+      await refreshJobs();
+      await refreshApplications();
+      await refreshNotifications();
+    }
+  }
+
+  Future<void> refreshJobs() async {
+    jobsLoading = true;
+    jobsError = null;
+    notifyListeners();
+    try {
+      jobs = await _marketplaceRepository.getPublishedJobs();
+    } catch (error) {
+      jobsError = _errorMessage(error);
+    } finally {
+      jobsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void _watchPublishedJobs(int watchVersion) {
+    jobsLoading = true;
+    jobsError = null;
+    notifyListeners();
+    _jobsSubscription = _marketplaceRepository.watchPublishedJobs().listen(
+      (publishedJobs) {
+        if (watchVersion != _jobWatchVersion) return;
+        jobs = publishedJobs;
+        jobsLoading = false;
+        jobsError = null;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        if (watchVersion != _jobWatchVersion) return;
+        jobsError = _errorMessage(error);
+        jobsLoading = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  Future<void> refreshCompanyJobs() async {
+    jobsLoading = true;
+    jobsError = null;
+    notifyListeners();
+    try {
+      companyJobs = await _marketplaceRepository.getCompanyJobs();
+    } catch (error) {
+      jobsError = _errorMessage(error);
+    } finally {
+      jobsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshApplications() async {
+    applicationsLoading = true;
+    applicationsError = null;
+    notifyListeners();
+    try {
+      applications = await _marketplaceRepository.getCandidateApplications();
+    } catch (error) {
+      applicationsError = _errorMessage(error);
+    } finally {
+      applicationsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshCompanyApplications() async {
+    applicationsLoading = true;
+    applicationsError = null;
+    notifyListeners();
+    try {
+      companyApplications =
+          await _marketplaceRepository.getCompanyApplications();
+    } catch (error) {
+      applicationsError = _errorMessage(error);
+    } finally {
+      applicationsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshNotifications() async {
+    notificationsLoading = true;
+    notificationsError = null;
+    notifyListeners();
+    try {
+      notifications = await _marketplaceRepository.getNotifications();
+    } catch (error) {
+      notificationsError = _errorMessage(error);
+    } finally {
+      notificationsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Job> createJob({
+    required String title,
+    required String location,
+    required String type,
+    required String salaryRange,
+    required String experience,
+    required String description,
+    required List<String> skills,
+  }) async {
+    final company = currentUser;
+    if (company == null || company.accountType != 'company') {
+      throw StateError('A signed-in company account is required.');
+    }
+    final job = await _marketplaceRepository.createJob(
+      Job(
+        id: '',
+        companyId: company.uid,
+        title: title,
+        company: company.name,
+        location: location,
+        salaryRange: salaryRange,
+        type: type,
+        tags: skills,
+        postedAt: DateTime.now(),
+        description: description,
+        experience: experience,
+      ),
+    );
+    return job;
+  }
+
+  Future<void> closeJob(String jobId) async {
+    await _marketplaceRepository.closeJob(jobId);
+    jobs = jobs.where((job) => job.id != jobId).toList();
+    companyJobs = companyJobs.where((job) => job.id != jobId).toList();
     notifyListeners();
   }
 
+  Future<void> requestApplication(Job job) async {
+    if (currentUser == null || currentUser!.accountType != 'employee') {
+      throw StateError('Sign in with an employee account to continue.');
+    }
+    await _marketplaceRepository.requestApplication(job);
+    await refreshApplications();
+  }
+
+  Future<void> submitManualApplication(Job job) async {
+    if (currentUser == null || currentUser!.accountType != 'employee') {
+      throw StateError('Sign in with an employee account to continue.');
+    }
+    await _marketplaceRepository.submitManualApplication(job);
+    await refreshApplications();
+  }
+
+  Future<void> updateApplicationStatus(
+    String applicationId,
+    ApplicationStatus status,
+  ) async {
+    await _marketplaceRepository.updateApplicationStatus(applicationId, status);
+    await refreshCompanyApplications();
+  }
+
+  static String _errorMessage(Object error) {
+    final text = error.toString();
+    return text.startsWith('Bad state: ') ? text.substring(11) : text;
+  }
+
+  static String errorMessage(Object error) => _errorMessage(error);
+
   Future<void> signOut() async {
-    await _auth.signOut();
+    await _authRepository.signOut();
     currentUser = null;
+    applications = [];
+    companyApplications = [];
+    notifications = [];
     notifyListeners();
   }
 
   @override
   void dispose() {
-    unawaited(_authSubscription.cancel());
-    unawaited(_pushTokenSubscription.cancel());
+    _jobWatchVersion++;
+    unawaited(_jobsSubscription?.cancel());
+    unawaited(_authSubscription?.cancel());
     super.dispose();
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_text.dart';
 import '../theme/app_theme.dart';
@@ -27,40 +26,35 @@ class _CvUploadScreenState extends State<CvUploadScreen> {
   Future<void> _pickCv() async {
     setState(() => _picking = true);
     try {
-      PlatformFile? selectedFile;
-      try {
-        final result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['pdf', 'doc', 'docx'],
-        );
-        if (result != null && result.files.isNotEmpty) {
-          selectedFile = result.files.first;
-        }
-      } catch (_) {
-        // file_picker requires platform channels; when run outside a real
-        // device/emulator this may throw — fall back to a demo file name so
-        // the flow is still testable.
-        selectedFile = PlatformFile(name: 'CV_Hussein.pdf', size: 0);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final PlatformFile file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        throw StateError('The selected file could not be read.');
       }
-
-      final file = selectedFile;
-      if (file != null && mounted) {
-        try {
-          await context.read<AppState>().attachCv(file.name, file.path ?? '');
-          if (mounted) setState(() => _pickedFileName = file.name);
-        } on FirebaseException {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(AppText.of(
-                  context,
-                  'تعذر حفظ بيانات السيرة الذاتية. تحقق من اتصالك وحاول مجددًا.',
-                  'Could not save CV details. Check your connection and try again.',
-                )),
-              ),
-            );
-          }
-        }
+      final mimeType = switch (file.extension?.toLowerCase()) {
+        'pdf' => 'application/pdf',
+        'doc' => 'application/msword',
+        'docx' =>
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        _ => throw StateError('Choose a PDF, DOC, or DOCX file.'),
+      };
+      await context.read<AppState>().attachCv(
+            fileName: file.name,
+            bytes: bytes,
+            mimeType: mimeType,
+          );
+      if (mounted) setState(() => _pickedFileName = file.name);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppState.errorMessage(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _picking = false);
@@ -81,7 +75,7 @@ class _CvUploadScreenState extends State<CvUploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surfaceIndigo,
+      backgroundColor: context.appPalette.background,
       appBar: widget.isOnboardingFlow
           ? null
           : AppBar(
@@ -123,7 +117,7 @@ class _CvUploadScreenState extends State<CvUploadScreen> {
                       style: const TextStyle(
                         color: AppColors.textDark,
                         fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                        fontSize: 18,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -131,8 +125,8 @@ class _CvUploadScreenState extends State<CvUploadScreen> {
                       _pickedFileName ??
                           AppText.of(
                               context,
-                              'دع الذكاء الاصطناعي يحلل سيرتك ويطابقها مع أفضل الفرص، ويقدم عنك تلقائيًا.',
-                              'Let AI analyze your CV, match you with opportunities, and apply for you.'),
+                              'ارفع سيرتك الذاتية لحفظها في ملفك الشخصي بأمان.',
+                              'Upload your CV to store it in your profile securely.'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                           color: AppColors.textMuted,

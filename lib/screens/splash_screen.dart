@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_text.dart';
@@ -22,8 +21,6 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   Timer? _timer;
-  bool _profileLoadFailed = false;
-  String? _profileLoadErrorCode;
   late final AnimationController _logoController;
   late final Animation<double> _logoScale;
 
@@ -42,26 +39,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _openNextScreen() async {
     final state = context.read<AppState>();
-    var hasAccountProfile = true;
-    try {
-      await state.authReady;
-      hasAccountProfile = await state.restoreProfileDetails(
-        createIfMissing: false,
-      );
-    } on FirebaseException catch (error, stackTrace) {
-      debugPrint(
-        'Failed to restore Firestore account profile '
-        '(${error.code}): ${error.message}',
-      );
-      debugPrintStack(stackTrace: stackTrace);
-      if (mounted) {
-        setState(() {
-          _profileLoadFailed = true;
-          _profileLoadErrorCode = error.code;
-        });
-      }
-      return;
-    }
+    await state.initialize();
+    final hasAccountProfile = await state.restoreProfileDetails(
+      createIfMissing: false,
+    );
     if (!mounted) return;
     final user = state.currentUser;
     Navigator.of(context).pushReplacement(
@@ -95,60 +76,9 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_profileLoadFailed) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _profileLoadErrorCode == 'permission-denied'
-                        ? AppText.of(
-                            context,
-                            'رفض Firebase الوصول إلى بيانات الحساب. سجّل الخروج ثم ادخل مجددًا.',
-                            'Firebase denied access to this account. Sign out and sign in again.',
-                          )
-                        : AppText.of(
-                            context,
-                            'تعذر تحميل بيانات الحساب من Firebase. تحقق من اتصالك وحاول مجددًا.',
-                            'Could not load your Firebase account data. Check your connection and try again.',
-                          ),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                  ),
-                  if (_profileLoadErrorCode != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Firebase error: $_profileLoadErrorCode',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  PrimaryButton(
-                    label: AppText.of(context, 'إعادة المحاولة', 'Retry'),
-                    onPressed: () {
-                      setState(() {
-                        _profileLoadFailed = false;
-                        _profileLoadErrorCode = null;
-                      });
-                      unawaited(_openNextScreen());
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+        decoration: BoxDecoration(gradient: context.appPalette.heroGradient),
         child: SafeArea(
           child: Stack(
             children: [
@@ -172,11 +102,12 @@ class _SplashScreenState extends State<SplashScreen>
                           decoration: BoxDecoration(
                             gradient: AppColors.pinkGradient,
                             borderRadius: BorderRadius.circular(24),
-                            boxShadow: const [
+                            boxShadow: [
                               BoxShadow(
-                                  color: Color(0x555EEFFF),
+                                  color: AppColors.primaryViolet
+                                      .withValues(alpha: 0.28),
                                   blurRadius: 30,
-                                  offset: Offset(0, 10)),
+                                  offset: const Offset(0, 10)),
                             ],
                           ),
                           child: const Icon(Icons.auto_awesome,
@@ -185,14 +116,15 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 20),
-                    const EntranceAnimation(
-                      delay: Duration(milliseconds: 120),
+                    EntranceAnimation(
+                      delay: const Duration(milliseconds: 120),
                       child: Text(
                         'مسارك',
                         style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800),
+                          color: context.appPalette.textPrimary,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -201,8 +133,9 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Text(
                         AppText.of(context, 'مسارك للتوظيف بالذكاء الاصطناعي',
                             'AI-powered career guidance'),
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13),
+                        style: TextStyle(
+                            color: context.appPalette.textSecondary,
+                            fontSize: 13),
                       ),
                     ),
                   ],
